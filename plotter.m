@@ -1,8 +1,7 @@
 %% Pupil Position Plotter
 close all
-data = readmatrix('/Users/Brian/Documents/ENGS89.90/90/Recordings/pupil_positions.csv','NumHeaderLines',1);
+data = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/test_v.csv','NumHeaderLines',1);
 data(data(:, 4) <= .65, :)= [];
-lefteye = data(data(:,3) == 1, :);
 %data = rmoutliers(data);
 
 
@@ -15,7 +14,7 @@ hold on;
 plot(x,y,'.');
 
 %% Classifier
-%max(x);
+max(x);
 min(x);
 max(y);
 min(y);
@@ -42,63 +41,63 @@ figure;
 plot(linspace(0,1, length(y)),y);
 
 %% Calibrate
-ur = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/up right.csv','NumHeaderLines',1);
+ur = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/up right.csv','NumHeaderLines',1);
 ur(ur(:, 4) <= .65, :)= [];
 ur = rmoutliers(ur);
 
 dur_x = ur(:,5)';
 dur_y = ur(:,6)';
 
-ul = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/up left.csv','NumHeaderLines',1);
+ul = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/up left.csv','NumHeaderLines',1);
 ul(ul(:, 4) <= .65, :)= [];
 ul = rmoutliers(ul);
 
 dul_x = ul(:,5)';
 dul_y = ul(:,6)';
 
-dr = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/down right.csv','NumHeaderLines',1);
+dr = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/down right.csv','NumHeaderLines',1);
 dr(dr(:, 4) <= .65, :)= [];
 dr = rmoutliers(dr);
 
 ddr_x = dr(:,5)';
 ddr_y = dr(:,6)';
 
-dl = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/down left.csv','NumHeaderLines',1);
+dl = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/down left.csv','NumHeaderLines',1);
 dl(dl(:, 4) <= .65, :)= [];
 dl = rmoutliers(dl);
 
 ddl_x = dl(:,5)';
 ddl_y = dl(:,6)';
 
-c = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/center.csv','NumHeaderLines',1);
+c = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/center.csv','NumHeaderLines',1);
 c(c(:, 4) <= .65, :)= [];
 c = rmoutliers(c);
 
 dc_x = c(:,5)';
 dc_y = c(:,6)';
 
-cu = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/center up.csv','NumHeaderLines',1);
+cu = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/center up.csv','NumHeaderLines',1);
 cu(cu(:, 4) <= .65, :)= [];
 cu = rmoutliers(cu);
 
 dcu_x = cu(:,5)';
 dcu_y = cu(:,6)';
 
-cd = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/center down.csv','NumHeaderLines',1);
+cd = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/center down.csv','NumHeaderLines',1);
 cd(cd(:, 4) <= .65, :)= [];
 cd = rmoutliers(cd);
 
 dcd_x = cd(:,5)';
 dcd_y = cd(:,6)';
 
-cr = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/center right.csv','NumHeaderLines',1);
+cr = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/center right.csv','NumHeaderLines',1);
 cr(cr(:, 4) <= .65, :)= [];
 cr = rmoutliers(cr);
 
 dcr_x = cr(:,5)';
 dcr_y = cr(:,6)';
 
-cl = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/Calibrate2/center left.csv','NumHeaderLines',1);
+cl = readmatrix('/Users/davidvonderheide/Desktop/Engs 90/CalibrateTest/center left.csv','NumHeaderLines',1);
 cl(cl(:, 4) <= .65, :)= [];
 cl = rmoutliers(cl);
 
@@ -106,7 +105,7 @@ dcl_x = cl(:,5)';
 dcl_y = cl(:,6)';
 
 %%
-figure;
+%figure;
 hold on;
 plot(dcu_x,dcu_y,'.');
 plot(dcd_x,dcd_y,'.');
