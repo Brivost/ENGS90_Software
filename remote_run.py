@@ -1,18 +1,21 @@
 # To run this script, you need to run: 
 #       `pip install tk`
 #       `pip install zmq msgpack==0.5.6`
-# 
+#       `pip install matplotlib` 
+#
 # Ensure that pip has installed these packages to the PythonPath the IDE is running
 # graphics.py must be findable by python
 
 import zmq
 from graphics import *
 import tkinter as tk
+import numpy as np
+import matplotlib.pyplot as plt
+from cvd_pupillometry.pyplr.pupil import PupilCore
+from cvd_pupillometry.pyplr.utils import unpack_data_pandas
 
-
-if __name__ == "__main__":
-
-#Set constants   
+def calibrate():
+    #Set constants   
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
@@ -22,7 +25,8 @@ if __name__ == "__main__":
 
     radius = 30         #dot properties
     color = 'black'
-    calibrate_t = 10    #time for calibration at each point
+    calibrate_t = 3     #time for calibration at each point
+    conf_thresh = .7   #confidence threshold
 
     win = GraphWin("Calibration", screen_width, screen_height)
 
@@ -43,6 +47,10 @@ if __name__ == "__main__":
     pupil_remote = zmq.Socket(ctx, zmq.REQ)
     pupil_remote.connect('tcp://127.0.0.1:50020')
 
+    p = PupilCore()
+    calibration = []
+    traces = []
+
 
 
 # Calibrate at the centroid of each grid
@@ -56,13 +64,20 @@ if __name__ == "__main__":
             win.getKey()
 
             #Calibrate
-            pupil_remote.send_string('R') #Begin recording
-            print(pupil_remote.recv_string())
-            time.sleep(calibrate_t)
-            pupil_remote.send_string('r') #Stop recording
-            print(pupil_remote.recv_string())
+
+            pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=calibrate_t)
+            data = pgr_future.result()
+            calibration.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+            
+            
+            # pupil_remote.send_string('R') #Begin recording
+            # print(pupil_remote.recv_string())
+            # time.sleep(calibrate_t)
+            # pupil_remote.send_string('r') #Stop recording
+            # print(pupil_remote.recv_string())
 
             ball.undraw()
+    
     
     head = Text(Point(screen_width/2,screen_height/3), "Calibration Pt. 2").draw(win)
     head.setSize(30)
@@ -108,7 +123,7 @@ if __name__ == "__main__":
     print(pupil_remote.recv_string())
 
     ball.undraw()
-
+    
     head = Text(Point(screen_width/2,screen_height/3), "Finished!").draw(win)
     head.setSize(30)
     head.setStyle('bold')
@@ -117,3 +132,20 @@ if __name__ == "__main__":
     
     win.getKey()
     win.close()
+
+    #Process the data, plot, and return
+    trimmed = []
+    for grid in calibration:
+        to_trim = np.array(grid[2]) >= conf_thresh
+        trimmed.append([np.array(grid[0])[to_trim],np.array(grid[1])[to_trim], np.array(grid[2])[to_trim]])
+    
+    calibration = trimmed
+    
+    for point in calibration:
+        plt.plot(point[0], point[1], '.')
+    plt.show()
+    
+    return [(np.average(grid[0]), np.average(grid[1])) for grid in calibration] 
+
+if __name__ == "__main__":
+    centroids = calibrate()
