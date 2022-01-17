@@ -6,6 +6,7 @@
 # Ensure that pip has installed these packages to the PythonPath the IDE is running
 # graphics.py must be findable by python
 
+import ssl
 import zmq
 from graphics import *
 import tkinter as tk
@@ -41,17 +42,14 @@ def calibrate():
     head.undraw()
     sub.undraw()
     
-
 #Connect to Pupil Core
     ctx = zmq.Context()
     pupil_remote = zmq.Socket(ctx, zmq.REQ)
     pupil_remote.connect('tcp://127.0.0.1:50020')
 
-    p = PupilCore()
+    p = PupilCore() # having issues here
     calibration = []
     traces = []
-
-
 
 # Calibrate at the centroid of each grid
     for i in range(0,3):
@@ -146,6 +144,43 @@ def calibrate():
     plt.show()
     
     return [(np.average(grid[0]), np.average(grid[1])) for grid in calibration] 
+
+
+# Returns an array of closest centroids for points in a data array
+def classify(centroids, data):
+
+    classified = []
+
+    for point in data:
+        for centroid in centroids:
+            distances = ((((point[0]-centroid[0])**2) + ((point[1]-centroid[1])**2))**0.5)
+        classified.append(min(distances))
+    
+    return classified # need to convert to 0-8? 
+
+# Check accuracy of calibration
+def validate():
+    #Set constants   
+    root = tk.Tk()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    
+    grid_w = screen_width/3
+    grid_h = screen_height/3
+
+    radius = 30         #dot properties
+    color = 'black'
+    calibrate_t = 3     #time for calibration at each point
+    conf_thresh = .7   #confidence threshold
+
+    win = GraphWin("Calibration", screen_width, screen_height)
+
+    
+    head = Text(Point(screen_width/2,screen_height/3), "Validation Pt. 1").draw(win)
+    head.setSize(30)
+    head.setStyle('bold')
+    sub = Text(Point(screen_width/2,screen_height/3+75), "Focus on each dot for 10 seconds" + '\n' + "Press any key once your eyes are focused on the dot" + '\n' + "Press any key to begin").draw(win)
+    sub.setSize(20)
 
 if __name__ == "__main__":
     centroids = calibrate()
