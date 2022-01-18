@@ -6,6 +6,7 @@
 # Ensure that pip has installed these packages to the PythonPath the IDE is running
 # graphics.py must be findable by python
 
+from ctypes import sizeof
 import ssl
 import zmq
 from graphics import *
@@ -13,13 +14,14 @@ import tkinter as tk
 import numpy as np
 import matplotlib.pyplot as plt
 from cvd_pupillometry.pyplr.pupil import PupilCore
-from cvd_pupillometry.pyplr.utils import unpack_data_pandas
+# from cvd_pupillometry.pyplr.utils import unpack_data_pandas
 
 def calibrate():
     #Set constants   
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
+    root.destroy() # gets rid of default tk window
     
     grid_w = screen_width/3
     grid_h = screen_height/3
@@ -30,7 +32,7 @@ def calibrate():
     conf_thresh = .7   #confidence threshold
 
     win = GraphWin("Calibration", screen_width, screen_height)
-
+    win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height, 0, 0)) # change window position
     
     head = Text(Point(screen_width/2,screen_height/3), "Calibration Pt. 1").draw(win)
     head.setSize(30)
@@ -47,7 +49,7 @@ def calibrate():
     pupil_remote = zmq.Socket(ctx, zmq.REQ)
     pupil_remote.connect('tcp://127.0.0.1:50020')
 
-    p = PupilCore() # having issues here
+    p = PupilCore() 
     calibration = []
     traces = []
 
@@ -164,6 +166,7 @@ def validate():
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
+    root.destroy() # gets rid of default tk window but also gives strange warning
     
     grid_w = screen_width/3
     grid_h = screen_height/3
@@ -172,15 +175,92 @@ def validate():
     color = 'black'
     calibrate_t = 3     #time for calibration at each point
     conf_thresh = .7   #confidence threshold
+    sampling_rate = 120 # Core collects 120 samples/sec
 
+    # Set up graphics window
     win = GraphWin("Calibration", screen_width, screen_height)
-
+    win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height, 0, 0)) # change window position
     
-    head = Text(Point(screen_width/2,screen_height/3), "Validation Pt. 1").draw(win)
+    #Connect to Pupil Core
+    ctx = zmq.Context()
+    pupil_remote = zmq.Socket(ctx, zmq.REQ)
+    pupil_remote.connect('tcp://127.0.0.1:50020')
+
+    p = PupilCore()
+    validation = []
+    
+    # VALIDATION PART 1
+    # Set up circle
+    ball = Circle(Point(grid_w/2, grid_h/2), radius)
+    ball.setFill(color)
+    ball.setOutline(color)
+    ball.draw(win)
+    
+    head = Text(Point(screen_width/2,screen_height/3), "Validation Part 1").draw(win)
     head.setSize(30)
     head.setStyle('bold')
-    sub = Text(Point(screen_width/2,screen_height/3+75), "Focus on each dot for 10 seconds" + '\n' + "Press any key once your eyes are focused on the dot" + '\n' + "Press any key to begin").draw(win)
+    sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot" + '\n' + "Press any key to begin").draw(win)
     sub.setSize(20)
+
+    win.getKey()
+    head.undraw()
+    sub.undraw()
+
+    ## Start recording?
+    # pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=calibrate_t)
+    # data = pgr_future.result()
+    # validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+    
+    dx = 3
+    dy = 3
+    ball_positions = []
+
+    for i in range(round(grid_w*2/dx)): # top left to top right
+        ball.move(dx, 0)
+        time.sleep(1/sampling_rate)
+        ball_positions.append(ball.getCenter())
+    
+    for i in range(round(grid_h*2/dy)): # top right to bottom right
+        ball.move(0, dy)
+        time.sleep(1/sampling_rate)
+        ball_positions.append(ball.getCenter())
+            
+    for i in range(round(grid_w*2/dx)): # bottom right to bottom left
+        ball.move(-dx, 0)
+        time.sleep(1/sampling_rate)
+        ball_positions.append(ball.getCenter())
+            
+    for i in range(round(grid_h*2/dy)): # bottom left to top left
+        ball.move(0, -dy)
+        time.sleep(1/sampling_rate)
+        ball_positions.append(ball.getCenter())
+    
+    ball.undraw()
+
+    print(sizeof(ball_positions))
+    print(sizeof(validation))
+
+
+    # # VALIDATION PART 2
+    # # Set up circle
+    # ball = Circle(Point(grid_w/2*3, grid_h/2), radius)
+    # ball.setFill(color)
+    # ball.setOutline(color)
+    # ball.draw(win)
+
+    # head = Text(Point(screen_width/2,screen_height/3), "Validation Part 2").draw(win)
+    # head.setSize(30)
+    # head.setStyle('bold')
+    # sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot" + '\n' + "Press any key to begin").draw(win)
+    # sub.setSize(20)
+
+    # win.getKey()
+    # head.undraw()
+    # sub.undraw()
+
+
+
 
 if __name__ == "__main__":
     centroids = calibrate()
+    # validate()
