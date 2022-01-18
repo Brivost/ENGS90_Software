@@ -7,7 +7,7 @@
 # Ensure that pip has installed these packages to the PythonPath the IDE is running
 # graphics.py and pyplr must be findable by python
 
-import argparser
+import argparse
 import csv
 import zmq
 from scipy.spatial import distance
@@ -31,6 +31,7 @@ def calibrate():
     color = 'black'
     calibrate_t = 3     #time for calibration at each point
     conf_thresh = .7   #confidence threshold
+    max_deviations = 2 #maximum deviations for outlier trimming
 
     win = GraphWin("Calibration", screen_width, screen_height)
 
@@ -150,7 +151,7 @@ def calibrate():
             mean = np.mean(grid[3])
             standard_deviation = np.std(grid[3])
             distance_from_mean = abs(grid[3] - mean)
-            max_deviations = 2
+            
             to_trim = distance_from_mean < max_deviations * standard_deviation
             trimmed2.append(([np.array(grid[0])[to_trim],np.array(grid[1])[to_trim], np.array(grid[2])[to_trim]]))
         
@@ -158,6 +159,11 @@ def calibrate():
         
         for point in calibration:
             plt.plot(point[0], point[1], '.')
+        
+        centroids = [(np.average(grid[0]), np.average(grid[1])) for grid in calibration]
+        
+        for (x,y) in centroids:
+            plt.plot(x,y,'*')
         plt.show()
 
         head = Text(Point(screen_width/2,screen_height/3), "Finished!").draw(win)
@@ -174,7 +180,7 @@ def calibrate():
             finished = True
 
     win.close()
-    return [(np.average(grid[0]), np.average(grid[1])) for grid in calibration] 
+    return centroids  
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
