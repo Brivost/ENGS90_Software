@@ -3,12 +3,16 @@
 #       `pip install zmq msgpack==0.5.6`
 #       `pip install matplotlib` 
 #       `pip install scipy`
+#       `pip install pyserial`
 #
 # Ensure that pip has installed these packages to the PythonPath the IDE is running
 # graphics.py and pyplr must be findable by python
 
 import argparse
 import csv
+import serial
+import time
+import os
 import zmq
 from scipy.spatial import distance
 from graphics import *
@@ -18,7 +22,7 @@ import matplotlib.pyplot as plt
 from cvd_pupillometry.pyplr.pupil import PupilCore
 from cvd_pupillometry.pyplr.utils import unpack_data_pandas
 
-def calibrate():
+def calibrate(outdir):
     #Set constants   
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
@@ -36,7 +40,7 @@ def calibrate():
     win = GraphWin("Calibration", screen_width, screen_height)
 
     
-    head = Text(Point(screen_width/2,screen_height/3), "Calibration Pt. 1").draw(win)
+    head = Text(Point(screen_width/2,screen_height/3), "Calibration").draw(win)
     head.setSize(30)
     head.setStyle('bold')
     sub = Text(Point(screen_width/2,screen_height/3+75), "Focus on each dot for 10 seconds" + '\n' + "Press any key once your eyes are focused on the dot" + '\n' + "Press any key to begin").draw(win)
@@ -48,9 +52,9 @@ def calibrate():
     
 
 #Connect to Pupil Core
-    ctx = zmq.Context()
-    pupil_remote = zmq.Socket(ctx, zmq.REQ)
-    pupil_remote.connect('tcp://127.0.0.1:50020')
+    # ctx = zmq.Context()
+    # pupil_remote = zmq.Socket(ctx, zmq.REQ)
+    # pupil_remote.connect('tcp://127.0.0.1:50020')
     p = PupilCore()
 
     calibration = []
@@ -176,18 +180,132 @@ def calibrate():
 
         if win.getKey() == 'r':
             finished = False
+            head.undraw()
+            sub.undraw()
+            plt.clf()
+            centroids = []
+            calibration = []
         else:
             finished = True
 
     win.close()
+
+    with open(outdir + "centroids.csv", 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+        for (x,y) in centroids:
+            writer.writerow([x,y])
+
     return centroids  
 
+
+def record_data(outdir, port, centroids):
+    """ Main function for running tests and recording data
+        Returns data from experiment saved as a csv in outdir
+        
+        outdir: path to directory where csv will be saved
+        port: Arduino port. Check gyroscope.c in Arduino (bottom right corner)
+        centroids: array of calibrated grid centroid positions
+
+        Each line in the csv file: eye_pos, eye_conf, gyr_x, gyr_y, gyr_z, acc_x, acc_y, acc_z
+    """
+
+    #Connect to Arduino. Code must be flashed to Arduino prior to running this function
+    #port = '/dev/cu.usbmodem1101'
+    #ard = serial.Serial(port,9600) 
+    #time.sleep(2)
+
+    #Connect to Pupil Core
+    p = PupilCore()
+
+    #Set Constants
+    data = [[], [], []]  
+    root = tk.Tk()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    finished = False
+    recording = False
+    run_num = 0
+    conf_thresh = .7
+
+    #Set up window
+
+    win = GraphWin("Experiment", screen_width, screen_height)
+    head = Text(Point(screen_width/2,screen_height/3), "Testing").draw(win)
+    head.setSize(30)
+    head.setStyle('bold')
+    sub = Text(Point(screen_width/2,screen_height/3+75), "Press 'r' to begin a run and 'r' again to end it" + '\n' + "Press 'c' to cancel a run. Data will not be saved'" + '\n' + "Press 'q' to end the experiment").draw(win)
+    sub.setSize(20)
+
+    rec = Text(Point(screen_width/2,screen_height/3+200), "RECORDING")
+    rec.setSize(30)
+    rec.setStyle('bold')
+
+    #Collect Data
+
+    while not finished:
+        key = win.checkKey()
+        #Manage the state
+        if not recording and key == 'r':
+            recording = True
+            rec.draw(win)
+        elif recording and key == 'r':
+            recording = False
+            rec.undraw()
+            with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
+                 writer = csv.writer(csvfile, delimiter=',')
+                 for (x,y,conf) in zip(data[0], data[1], data[2]):
+                    writer.writerow([x,y,conf])
+            data = [[], [], []]
+            run_num = run_num+1
+        elif key == 'c':
+            if recording: rec.undraw()
+            recording = False
+            data = [[], [], []] 
+        elif key == 'q':
+            finished = True
+        
+        if recording:
+            #accel = ard.readline()) #TODO parse this as needed once IMU arrives. Accel will be an array: [gyr_x, gyr_y, gyr_z, accel_x, accel_y, accel_z]
+            pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=1/120)
+            p_d = pgr_future.result()
+            p_d = [np.array([d[b'norm_pos'][0] for d in p_d]), np.array([d[b'norm_pos'][1] for d in p_d]), np.array([d[b'confidence'] for d in p_d])]
+   
+            if len(p_d) != 1:
+                p_d = [sample[np.array(p_d[2]) >= conf_thresh] for sample in p_d]
+                p_d = [np.average(sample) for sample in p_d]
+                        
+            data[0].append(p_d[0])
+            data[1].append(p_d[1])
+            data[2].append(p_d[2])
+    
+
+
 if __name__ == "__main__":
+    """
+    `python remote_run.py -o [output directory] -c [optional: path to csv of calibrated centroids]`
+
+    """
     parser = argparse.ArgumentParser()
+    parser.add_argument("-o", metavar=("Output directory"))
     parser.add_argument("-c", metavar=("Path to csv of calibrated centroids"))
     args = parser.parse_args()
 
+    #make the output directory if it does not exist
+    if not os.path.isdir(args.o):
+        os.makedirs(args.o, exist_ok=True)
+
+    #Run calibration or load in calibrated centroids as indicated
     if args.c == None:
-        centroids = calibrate()
+        centroids = calibrate(args.o)
+    else:
+        centroids = []
+        with open(args.c, newline='') as csvfile:
+            reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+            for row in reader:
+                centroids.append([float(x) for x in row[0].split(',')])
+    
+    
+    #Run the experiment
+    record_data(args.o, '', centroids)
   
 
