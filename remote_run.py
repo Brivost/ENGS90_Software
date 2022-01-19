@@ -11,6 +11,7 @@
 import argparse
 import csv
 import serial
+import math
 import time
 import os
 import zmq
@@ -78,66 +79,11 @@ def calibrate(outdir):
                 pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=calibrate_t)
                 data = pgr_future.result()
                 calibration.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
-                
-                
-                # pupil_remote.send_string('R') #Begin recording
-                # print(pupil_remote.recv_string())
-                # time.sleep(calibrate_t)
-                # pupil_remote.send_string('r') #Stop recording
-                # print(pupil_remote.recv_string())
-
                 ball.undraw()
         
-        """
-        head = Text(Point(screen_width/2,screen_height/3), "Calibration Pt. 2").draw(win)
-        head.setSize(30)
-        head.setStyle('bold')
-        sub = Text(Point(screen_width/2,screen_height/3+75), "Initially fixate on the dot as you did in Part One" + '\n' + "Press any key once your eyes are focused on the dot and it will begin to move" + '\n' + "Do your best to follow the dot with your eyes as closely as you can").draw(win)
-        sub.setSize(20)
-        win.getKey()
-        head.undraw()
-        sub.undraw()
-        
-        ball = Circle(Point(screen_width/2,0+radius), radius)
-        ball.setFill(color)
-        ball.setOutline(color)
-        ball.draw(win)
-        win.getKey()
-        
-        pupil_remote.send_string('R') #Begin recording
-        print(pupil_remote.recv_string())
 
-        for i in range(screen_height-radius):
-            ball.move(0,1)
-            time.sleep(3/(screen_height-radius))
 
-        pupil_remote.send_string('r') #Stop recording
-        print(pupil_remote.recv_string())
-
-        ball.undraw()
-
-        ball = Circle(Point(0+radius,screen_height/2), radius)
-        ball.setFill(color)
-        ball.setOutline(color)
-        ball.draw(win)
-        win.getKey()
-        
-        pupil_remote.send_string('R') #Begin recording
-        print(pupil_remote.recv_string())
-
-        for i in range(screen_width-radius):
-            ball.move(1,0)
-            time.sleep(3/(screen_width-radius))
-
-        pupil_remote.send_string('r') #Stop recording
-        print(pupil_remote.recv_string())
-
-        ball.undraw()
-        """
-        
-        #Process the data and plot
-
-        #trim off low confidence values
+        #Trim off low confidence values
         trimmed = []
         for grid in calibration:
             to_trim = np.array(grid[2]) >= conf_thresh
@@ -198,6 +144,28 @@ def calibrate(outdir):
     return centroids  
 
 
+def classify(centroids, data, conf_thresh):
+    """ Classifies pupil x,y position in data matrix into grid number
+        Classification is simply determined by nearest calibrated point
+        Returns data vector with classified eye position appended
+
+        centroids: list of calibrated centroids
+        data: eye_x, eye_y, eye_conf, gyr_x, gyr_y, gyr_z, acc_x, acc_y, acc_z
+        
+    """
+    labeled = []
+    
+    for sample in data:
+        value = 9 #Classify as 9 if the sample does not meet the confidence threshold
+        if sample[2] >= conf_thresh: 
+            distances = [math.sqrt((sample[0] - point[0])**2 + (sample[1] - point[1])**2) for point in centroids]
+            value = distances.index(min(distances))
+        labeled.append(np.insert(sample, 0, value))
+        
+    return labeled
+
+
+
 def record_data(outdir, port, centroids):
     """ Main function for running tests and recording data
         Returns data from experiment saved as a csv in outdir
@@ -206,7 +174,7 @@ def record_data(outdir, port, centroids):
         port: Arduino port. Check gyroscope.c in Arduino (bottom right corner)
         centroids: array of calibrated grid centroid positions
 
-        Each line in the csv file: eye_pos, eye_conf, gyr_x, gyr_y, gyr_z, acc_x, acc_y, acc_z
+        Each line in the csv file: eye_pos, eye_x, eye_y, eye_conf, gyr_x, gyr_y, gyr_z, acc_x, acc_y, acc_z
     """
 
     #Connect to Arduino. Code must be flashed to Arduino prior to running this function
@@ -218,7 +186,8 @@ def record_data(outdir, port, centroids):
     p = PupilCore()
 
     #Set Constants
-    data = [[], [], []]  
+    data = [[], [], []]
+    raw = []  
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
@@ -251,32 +220,42 @@ def record_data(outdir, port, centroids):
         elif recording and key == 'r':
             recording = False
             rec.undraw()
+
+            #process data
+            data = [[], [], []]
+            for p_d in raw:
+                p_data = [np.array([d[b'norm_pos'][0] for d in p_d]), np.array([d[b'norm_pos'][1] for d in p_d]), np.array([d[b'confidence'] for d in p_d])]
+   
+                if len(p_data) != 1:
+                    p_data = [sample[np.array(p_data[2]) >= conf_thresh] for sample in p_data]
+                    p_data = [np.average(sample) for sample in p_data]
+                 
+                data[0].append(p_data[0])
+                data[1].append(p_data[1])
+                data[2].append(p_data[2])
+            
+            data = classify(centroids, np.array(data).T, conf_thresh) 
             with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
                  writer = csv.writer(csvfile, delimiter=',')
-                 for (x,y,conf) in zip(data[0], data[1], data[2]):
-                    writer.writerow([x,y,conf])
-            data = [[], [], []]
+                 for line in data:
+                    writer.writerow(line)
+            
+            raw = []
             run_num = run_num+1
         elif key == 'c':
             if recording: rec.undraw()
             recording = False
-            data = [[], [], []] 
+            raw = [] 
         elif key == 'q':
             finished = True
         
         if recording:
             #accel = ard.readline()) #TODO parse this as needed once IMU arrives. Accel will be an array: [gyr_x, gyr_y, gyr_z, accel_x, accel_y, accel_z]
             pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=1/120)
-            p_d = pgr_future.result()
-            p_d = [np.array([d[b'norm_pos'][0] for d in p_d]), np.array([d[b'norm_pos'][1] for d in p_d]), np.array([d[b'confidence'] for d in p_d])]
-   
-            if len(p_d) != 1:
-                p_d = [sample[np.array(p_d[2]) >= conf_thresh] for sample in p_d]
-                p_d = [np.average(sample) for sample in p_d]
-                        
-            data[0].append(p_d[0])
-            data[1].append(p_d[1])
-            data[2].append(p_d[2])
+            raw.append(pgr_future.result())
+
+
+
     
 
 
