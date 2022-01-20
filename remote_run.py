@@ -1,27 +1,33 @@
-# To run this script, you need to run: 
+# To run this script, you need to install: 
 #       `pip install tk`
 #       `pip install zmq msgpack==0.5.6`
 #       `pip install matplotlib` 
+#       `pip install scipy`
+#       `pip install pyserial`
 #
 # Ensure that pip has installed these packages to the PythonPath the IDE is running
-# graphics.py must be findable by python
+# graphics.py and pyplr must be findable by python
 
-from ctypes import sizeof
-import ssl
+import argparse
+import csv
+# import serial
+import math
+import time
+import os
 import zmq
+from scipy.spatial import distance
 from graphics import *
 import tkinter as tk
 import numpy as np
 import matplotlib.pyplot as plt
 from cvd_pupillometry.pyplr.pupil import PupilCore
-# from cvd_pupillometry.pyplr.utils import unpack_data_pandas
+from cvd_pupillometry.pyplr.utils import unpack_data_pandas
 
-def calibrate():
+def calibrate(outdir):
     #Set constants   
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
-    root.destroy() # gets rid of default tk window
     
     grid_w = screen_width/3
     grid_h = screen_height/3
@@ -30,11 +36,12 @@ def calibrate():
     color = 'black'
     calibrate_t = 3     #time for calibration at each point
     conf_thresh = .7   #confidence threshold
+    max_deviations = 2 #maximum deviations for outlier trimming
 
     win = GraphWin("Calibration", screen_width, screen_height)
     win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height, 0, 0)) # change window position
     
-    head = Text(Point(screen_width/2,screen_height/3), "Calibration Pt. 1").draw(win)
+    head = Text(Point(screen_width/2,screen_height/3), "Calibration").draw(win)
     head.setSize(30)
     head.setStyle('bold')
     sub = Text(Point(screen_width/2,screen_height/3+75), "Focus on each dot for 10 seconds" + '\n' + "Press any key once your eyes are focused on the dot" + '\n' + "Press any key to begin").draw(win)
@@ -44,124 +51,121 @@ def calibrate():
     head.undraw()
     sub.undraw()
     
-#Connect to Pupil Core
-    ctx = zmq.Context()
-    pupil_remote = zmq.Socket(ctx, zmq.REQ)
-    pupil_remote.connect('tcp://127.0.0.1:50020')
 
-    p = PupilCore() 
+#Connect to Pupil Core
+    # ctx = zmq.Context()
+    # pupil_remote = zmq.Socket(ctx, zmq.REQ)
+    # pupil_remote.connect('tcp://127.0.0.1:50020')
+    p = PupilCore()
+
     calibration = []
     traces = []
+    finished = False
+
 
 # Calibrate at the centroid of each grid
-    for i in range(0,3):
-        for j in range(0,3):
-            #Move the point
-            ball = Circle(Point(grid_w/2+ grid_w*j,grid_h/2+ grid_h*i), radius)
-            ball.setFill(color)
-            ball.setOutline(color)
-            ball.draw(win)
-            win.getKey()
+    while not finished:
+        for i in range(0,3):
+            for j in range(0,3):
+                #Move the point
+                ball = Circle(Point(grid_w/2+ grid_w*j,grid_h/2+ grid_h*i), radius)
+                ball.setFill(color)
+                ball.setOutline(color)
+                ball.draw(win)
+                win.getKey()
 
-            #Calibrate
+                #Calibrate
 
-            pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=calibrate_t)
-            data = pgr_future.result()
-            calibration.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+                pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=calibrate_t)
+                data = pgr_future.result()
+                calibration.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+                ball.undraw()
+        
+
+
+        #Trim off low confidence values
+        trimmed = []
+        for grid in calibration:
+            to_trim = np.array(grid[2]) >= conf_thresh
+            trimmed.append([np.array(grid[0])[to_trim],np.array(grid[1])[to_trim], np.array(grid[2])[to_trim]])
+        
+        calibration = trimmed
+
+        #remove outliers
+        trimmed2 = []
+        for grid in calibration:
+            mean_x = np.mean(grid[0])
+            mean_y = np.mean(grid[1])
+            grid.append([distance.euclidean((x,y), (mean_x, mean_y)) for (x,y) in zip(grid[0], grid[1])])
+
+            mean = np.mean(grid[3])
+            standard_deviation = np.std(grid[3])
+            distance_from_mean = abs(grid[3] - mean)
             
-            
-            # pupil_remote.send_string('R') #Begin recording
-            # print(pupil_remote.recv_string())
-            # time.sleep(calibrate_t)
-            # pupil_remote.send_string('r') #Stop recording
-            # print(pupil_remote.recv_string())
+            to_trim = distance_from_mean < max_deviations * standard_deviation
+            trimmed2.append(([np.array(grid[0])[to_trim],np.array(grid[1])[to_trim], np.array(grid[2])[to_trim]]))
+        
+        calibration = trimmed2
+        
+        for point in calibration:
+            plt.plot(point[0], point[1], '.')
+        
+        centroids = [(np.average(grid[0]), np.average(grid[1])) for grid in calibration]
+        
+        for (x,y) in centroids:
+            plt.plot(x,y,'*')
+        plt.show()
 
-            ball.undraw()
-    
-    
-    head = Text(Point(screen_width/2,screen_height/3), "Calibration Pt. 2").draw(win)
-    head.setSize(30)
-    head.setStyle('bold')
-    sub = Text(Point(screen_width/2,screen_height/3+75), "Initially fixate on the dot as you did in Part One" + '\n' + "Press any key once your eyes are focused on the dot and it will begin to move" + '\n' + "Do your best to follow the dot with your eyes as closely as you can").draw(win)
-    sub.setSize(20)
-    win.getKey()
-    head.undraw()
-    sub.undraw()
-    
-    ball = Circle(Point(screen_width/2,0+radius), radius)
-    ball.setFill(color)
-    ball.setOutline(color)
-    ball.draw(win)
-    win.getKey()
-    
-    pupil_remote.send_string('R') #Begin recording
-    print(pupil_remote.recv_string())
+        head = Text(Point(screen_width/2,screen_height/3), "Finished!").draw(win)
+        head.setSize(30)
+        head.setStyle('bold')
+        sub = Text(Point(screen_width/2,screen_height/3+75), "Press 'r' to recalibrate or any other key to exit").draw(win)
+        sub.setSize(20)
+        
 
-    for i in range(screen_height-radius):
-        ball.move(0,1)
-        time.sleep(3/(screen_height-radius))
 
-    pupil_remote.send_string('r') #Stop recording
-    print(pupil_remote.recv_string())
+        if win.getKey() == 'r':
+            finished = False
+            head.undraw()
+            sub.undraw()
+            plt.clf()
+            centroids = []
+            calibration = []
+        else:
+            finished = True
 
-    ball.undraw()
-
-    ball = Circle(Point(0+radius,screen_height/2), radius)
-    ball.setFill(color)
-    ball.setOutline(color)
-    ball.draw(win)
-    win.getKey()
-    
-    pupil_remote.send_string('R') #Begin recording
-    print(pupil_remote.recv_string())
-
-    for i in range(screen_width-radius):
-        ball.move(1,0)
-        time.sleep(3/(screen_width-radius))
-
-    pupil_remote.send_string('r') #Stop recording
-    print(pupil_remote.recv_string())
-
-    ball.undraw()
-    
-    head = Text(Point(screen_width/2,screen_height/3), "Finished!").draw(win)
-    head.setSize(30)
-    head.setStyle('bold')
-    sub = Text(Point(screen_width/2,screen_height/3+75), "Press any key to exit").draw(win)
-    sub.setSize(20)
-    
-    win.getKey()
     win.close()
 
-    #Process the data, plot, and return
-    trimmed = []
-    for grid in calibration:
-        to_trim = np.array(grid[2]) >= conf_thresh
-        trimmed.append([np.array(grid[0])[to_trim],np.array(grid[1])[to_trim], np.array(grid[2])[to_trim]])
-    
-    calibration = trimmed
-    
-    for point in calibration:
-        plt.plot(point[0], point[1], '.')
-    plt.show()
-    
-    return [(np.average(grid[0]), np.average(grid[1])) for grid in calibration] 
+    with open(outdir + "centroids.csv", 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',')
+        for (x,y) in centroids:
+            writer.writerow([x,y])
 
+    return centroids   
 
-# Returns an array of closest centroids for points in a data array
-def classify(centroids, data):
-
-    classified = []
-
-    for point in data:
-        for centroid in centroids:
-            distances = ((((point[0]-centroid[0])**2) + ((point[1]-centroid[1])**2))**0.5)
-        classified.append(min(distances))
+def classify(centroids, data, conf_thresh):
+    """ Classifies pupil x,y position in data matrix into grid number
+        Classification is simply determined by nearest calibrated point
+        Returns data vector with classified eye position appended
+        centroids: list of calibrated centroids
+        data: eye_x, eye_y, eye_conf, gyr_x, gyr_y, gyr_z, acc_x, acc_y, acc_z
+        
+    """
+    labeled = []
     
-    return classified # need to convert to 0-8? 
+    for sample in data:
+        sample = np.concatenate(sample) #Combine 3 lists (x,y,conf) into 1 list
+        value = 9 #Classify as 9 if the sample does not meet the confidence threshold
+        if sample[2] >= conf_thresh: 
+            distances = [math.sqrt((sample[0] - point[0])**2 + (sample[1] - point[1])**2) for point in centroids]
+            value = distances.index(min(distances))
+        labeled.append(value)
+        # labeled.append(np.insert(sample, 0, value))
+        
+    return labeled
 
 # Check accuracy of calibration
-def validate():
+def validate(centroids):
     #Set constants   
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
@@ -173,9 +177,9 @@ def validate():
 
     radius = 30         #dot properties
     color = 'black'
-    calibrate_t = 3     #time for calibration at each point
     conf_thresh = .7   #confidence threshold
     sampling_rate = 120 # Core collects 120 samples/sec
+    capture_time = 1/sampling_rate # Amount of time for Core to collect
 
     # Set up graphics window
     win = GraphWin("Calibration", screen_width, screen_height)
@@ -187,11 +191,11 @@ def validate():
     pupil_remote.connect('tcp://127.0.0.1:50020')
 
     p = PupilCore()
-    validation = []
     
     # VALIDATION PART 1
     # Set up circle
     ball = Circle(Point(grid_w/2, grid_h/2), radius)
+    ball_x_coord = grid_w/2 # will be incremented to keep track of ball center
     ball.setFill(color)
     ball.setOutline(color)
     ball.draw(win)
@@ -206,39 +210,78 @@ def validate():
     head.undraw()
     sub.undraw()
 
-    ## Start recording?
-    # pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=calibrate_t)
-    # data = pgr_future.result()
-    # validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
-    
     dx = 3
     dy = 3
-    ball_positions = []
+    labeled_ball_positions = []
+    validation = []
 
-    for i in range(round(grid_w*2/dx)): # top left to top right
+    for i in range(round(grid_w/10)): # top left to top right, grid_w*2/dx
+        
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+        data = pgr_future.result()
+        # data = data[0] # grab first data point as only one, to capture data
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
         ball.move(dx, 0)
-        time.sleep(1/sampling_rate)
-        ball_positions.append(ball.getCenter())
+        #time.sleep(1/sampling_rate) # don't actually need?
+
+        ball_x_coord += dx
+        if ball_x_coord <= grid_w:
+            labeled_ball_positions.append(0)
+        elif ball_x_coord <= grid_w*2:
+            labeled_ball_positions.append(1)
+        else:
+            labeled_ball_positions.append(2)        
     
-    for i in range(round(grid_h*2/dy)): # top right to bottom right
-        ball.move(0, dy)
-        time.sleep(1/sampling_rate)
-        ball_positions.append(ball.getCenter())
+    # for i in range(round(grid_h*2/dy)): # top right to bottom right
+        
+    #     # Start recording for 'capture_time' seconds
+    #     pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+    #     data = pgr_future.result()
+    #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+    #     ball.move(0, dy)
+    #     time.sleep(1/sampling_rate)
+    #     ball_positions.append(ball.getCenter())
             
-    for i in range(round(grid_w*2/dx)): # bottom right to bottom left
-        ball.move(-dx, 0)
-        time.sleep(1/sampling_rate)
-        ball_positions.append(ball.getCenter())
+    # for i in range(round(grid_w*2/dx)): # bottom right to bottom left
+       
+    #     # Start recording for 'capture_time' seconds
+    #     pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+    #     data = pgr_future.result()
+    #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+    #     ball.move(-dx, 0)
+    #     time.sleep(1/sampling_rate)
+    #     ball_positions.append(ball.getCenter())
             
-    for i in range(round(grid_h*2/dy)): # bottom left to top left
-        ball.move(0, -dy)
-        time.sleep(1/sampling_rate)
-        ball_positions.append(ball.getCenter())
+    # for i in range(round(grid_h*2/dy)): # bottom left to top left
+        
+    #     # Start recording for 'capture_time' seconds
+    #     pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+    #     data = pgr_future.result()
+    #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+    #     ball.move(0, -dy)
+    #     time.sleep(1/sampling_rate)
+    #     ball_positions.append(ball.getCenter())
     
     ball.undraw()
 
-    print(sizeof(ball_positions))
-    print(sizeof(validation))
+    print("Ball positions: ", labeled_ball_positions)
+    print("Number of elements from core: ", len(validation))
+    print(validation)
+
+    # Compare ball_positions and validation arrays
+    classified_validation = classify(centroids, validation, conf_thresh)
+
+    print(classified_validation)
+
+    percent_correct = (sum(1 for a,b in zip(labeled_ball_positions, classified_validation) if a ==b)/len(labeled_ball_positions)) * 100
+
+    print(f"Pupil Core is currently {percent_correct}% accuracte")
+
 
 
     # # VALIDATION PART 2
@@ -262,5 +305,27 @@ def validate():
 
 
 if __name__ == "__main__":
-    centroids = calibrate()
-    # validate()
+    """
+    `python remote_run.py -o [output directory] -c [optional: path to csv of calibrated centroids]`
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-o", metavar=("Output directory"))
+    parser.add_argument("-c", metavar=("Path to csv of calibrated centroids"))
+    args = parser.parse_args()
+
+    # #make the output directory if it does not exist
+    # if not os.path.isdir(args.o):
+    #     os.makedirs(args.o, exist_ok=True)
+
+    #Run calibration or load in calibrated centroids as indicated
+    if args.c == None:
+        centroids = calibrate(args.o)
+    else:
+        centroids = []
+        with open(args.c, newline='') as csvfile:
+            reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+            for row in reader:
+                centroids.append([float(x) for x in row[0].split(',')])
+
+    # Run validation
+    validate(centroids)
