@@ -13,7 +13,16 @@ import matplotlib.pyplot as plt
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import train_test_split
 
-
+def class_to_color(c):
+    if c==0: return 'red'
+    elif c==1: return 'pink'
+    elif c==2: return 'orange'
+    elif c==3: return 'yellow'
+    elif c==4: return 'green'
+    elif c==5: return 'blue'
+    elif c==6: return 'brown'
+    elif c==7: return 'purple'
+    elif c==8: return 'black'
 
 def load(datadir):
     """ 
@@ -54,12 +63,24 @@ def plot_data(data, centroids=None):
     for run in data:
         d = np.array(run).T
         plt.subplot(2,n_columns,n)
-        plt.plot(d[1], d[2], '.')
+        for (c, x, y) in zip(d[0], d[1], d[2]):
+            plt.plot(x, y, '.', color=class_to_color(c)) 
         if centroids != None:
             for (x,y) in centroids:
-                plt.plot(x,y,'*')
+                plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))
+            
+            #vertical lines
+            plt.plot([(centroids[0][0] + centroids[1][0])/2,(centroids[6][0] + centroids[7][0])/2], [(centroids[0][1] + centroids[1][1])/2,(centroids[6][1] + centroids[7][1])/2],'--', color='black')
+            plt.plot([(centroids[1][0] + centroids[2][0])/2,(centroids[7][0] + centroids[8][0])/2], [(centroids[1][1] + centroids[2][1])/2,(centroids[7][1] + centroids[8][1])/2],'--', color='black')
+
+            #horizontal lines
+            plt.plot([(centroids[0][0] + centroids[3][0])/2,(centroids[2][0] + centroids[5][0])/2], [(centroids[0][1] + centroids[3][1])/2,(centroids[2][1] + centroids[5][1])/2],'--', color='black')
+            plt.plot([(centroids[3][0] + centroids[6][0])/2,(centroids[5][0] + centroids[8][0])/2], [(centroids[3][1] + centroids[6][1])/2,(centroids[5][1] + centroids[8][1])/2],'--', color='black')
         n=n+1
     
+
+        
+
     plt.show()
 
 
@@ -82,5 +103,5 @@ def feature_extraction(data, specific=False):
 
 
 if __name__ == "__main__":
-    (data, centroids) = load('data/')
+    (data, centroids) = load('plot_test/')
     plot_data(data, centroids)
