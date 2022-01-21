@@ -77,7 +77,7 @@ def calibrate(outdir):
 
                 #Calibrate
 
-                pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=calibrate_t)
+                pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=calibrate_t)
                 data = pgr_future.result()
                 calibration.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
                 ball.undraw()
@@ -271,7 +271,7 @@ def record_data(outdir, port, centroids):
 
             if len(accel) == 6: #The first reading is often a fragment, dump it
 
-                pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=1/240) #Read from Pupil Core
+                pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=1/240) #Read from Pupil Core
              
                 raw.append((pgr_future.result(),accel)) #Stitch raw data together
             print("-------- %s -------" % (time.time() - start_time))
