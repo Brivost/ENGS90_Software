@@ -39,6 +39,7 @@ def calibrate(outdir):
     max_deviations = 2 #maximum deviations for outlier trimming
 
     win = GraphWin("Calibration", screen_width, screen_height)
+    win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height,0,0))
 
     
     head = Text(Point(screen_width/2,screen_height/3), "Calibration").draw(win)
@@ -176,11 +177,11 @@ def record_data(outdir, port, centroids):
 
         Each line in the csv file: eye_pos, eye_x, eye_y, eye_conf, gyr_x, gyr_y, gyr_z, acc_x, acc_y, acc_z
     """
-
+    
     #Connect to Arduino. Code must be flashed to Arduino prior to running this function
     #port = '/dev/cu.usbmodem1101'
-    #ard = serial.Serial(port,9600) 
-    #time.sleep(2)
+    ard = serial.Serial(port,9600) 
+    time.sleep(2)
 
     #Connect to Pupil Core
     p = PupilCore()
@@ -199,6 +200,8 @@ def record_data(outdir, port, centroids):
     #Set up window
 
     win = GraphWin("Experiment", screen_width, screen_height)
+    win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height,0,0))
+
     head = Text(Point(screen_width/2,screen_height/3), "Testing").draw(win)
     head.setSize(30)
     head.setStyle('bold')
@@ -212,6 +215,7 @@ def record_data(outdir, port, centroids):
     #Collect Data
 
     while not finished:
+        start_time = time.time()
         key = win.checkKey()
         #Manage the state
         if not recording and key == 'r':
@@ -221,9 +225,9 @@ def record_data(outdir, port, centroids):
             recording = False
             rec.undraw()
 
-            #process data
-            data = [[], [], []]
-            for p_d in raw:
+            #Process raw data
+            data = [[],[],[],[],[],[],[],[],[]]
+            for (p_d, accel) in raw:
                 p_data = [np.array([d[b'norm_pos'][0] for d in p_d]), np.array([d[b'norm_pos'][1] for d in p_d]), np.array([d[b'confidence'] for d in p_d])]
    
                 if len(p_data) != 1:
@@ -233,8 +237,15 @@ def record_data(outdir, port, centroids):
                 data[0].append(p_data[0])
                 data[1].append(p_data[1])
                 data[2].append(p_data[2])
+
+                data[3].append(accel[0])
+                data[4].append(accel[1])
+                data[5].append(accel[2])
+                data[6].append(accel[3])
+                data[7].append(accel[4])
+                data[8].append(accel[5])
             
-            data = classify(centroids, np.array(data).T, conf_thresh) 
+            data = classify(centroids, np.array(data).astype(np.float).T, conf_thresh) 
             with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
                  writer = csv.writer(csvfile, delimiter=',')
                  for line in data:
@@ -242,20 +253,31 @@ def record_data(outdir, port, centroids):
             
             raw = []
             run_num = run_num+1
+        #Cancel run
         elif key == 'c':
             if recording: rec.undraw()
             recording = False
             raw = [] 
+        #Quit
         elif key == 'q':
             finished = True
         
+
+        #Read in data if experiment is running
         if recording:
-            #accel = ard.readline()) #TODO parse this as needed once IMU arrives. Accel will be an array: [gyr_x, gyr_y, gyr_z, accel_x, accel_y, accel_z]
-            pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=1/120)
-            raw.append(pgr_future.result())
+            
+           
+            accel = ard.readline().decode().strip().split(",") #Read from Arduino
+
+            if len(accel) == 6: #The first reading is often a fragment, dump it
+
+                pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=1/240) #Read from Pupil Core
+             
+                raw.append((pgr_future.result(),accel)) #Stitch raw data together
+            print("-------- %s -------" % (time.time() - start_time))
 
 
-
+    ard.close()
     
 
 
@@ -267,11 +289,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", metavar=("Output directory"))
     parser.add_argument("-c", metavar=("Path to csv of calibrated centroids"))
+    parser.add_argument("-p", metavar=("Arduino port"))
     args = parser.parse_args()
 
     #make the output directory if it does not exist
     if not os.path.isdir(args.o):
         os.makedirs(args.o, exist_ok=True)
+    
+    if args.p == None:
+        port = "COM4"
+    else: port = args.p
 
     #Run calibration or load in calibrated centroids as indicated
     if args.c == None:
@@ -285,6 +312,6 @@ if __name__ == "__main__":
     
     
     #Run the experiment
-    record_data(args.o, '', centroids)
+    record_data(args.o, port, centroids)
   
 
