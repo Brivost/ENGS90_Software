@@ -189,15 +189,6 @@ def validate(centroids):
     pupil_remote.connect('tcp://127.0.0.1:50020')
 
     p = PupilCore()
-    
-    # VALIDATION PART 1
-    # # Set up circle (TOP LEFT)
-    # ball = Circle(Point(grid_w/2, grid_h/2), radius)
-    # ball_x_coord = grid_w/2 # will be incremented to keep track of ball center
-    # ball_y_coord = grid_h/2
-    # ball.setFill(color)
-    # ball.setOutline(color)
-    # ball.draw(win)
 
     # Set up circle (TOP RIGHT)
     ball = Circle(Point(grid_w/2*5, grid_h/2), radius)
@@ -210,7 +201,7 @@ def validate(centroids):
     head = Text(Point(screen_width/2,screen_height/3), "Validation Part 1").draw(win)
     head.setSize(30)
     head.setStyle('bold')
-    sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot" + '\n' + "Press any key to begin").draw(win)
+    sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot as it traces the letter 'G' " + '\n' + "Press any key to begin").draw(win)
     sub.setSize(20)
 
     win.getKey()
@@ -304,74 +295,6 @@ def validate(centroids):
             labeled_ball_positions.append(4)
         else:
             labeled_ball_positions.append(5)  
-
-    # for i in range(round(grid_w*2/dx)): # top left to top right
-        
-    #     # Start recording for 'capture_time' seconds
-    #     pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
-    #     data = pgr_future.result()
-    #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
-        
-    #     ball.move(dx, 0)
-
-    #     ball_x_coord += dx
-    #     if ball_x_coord <= grid_w:
-    #         labeled_ball_positions.append(0)
-    #     elif ball_x_coord <= grid_w*2:
-    #         labeled_ball_positions.append(1)
-    #     else:
-    #         labeled_ball_positions.append(2)        
-    
-    # for i in range(round(grid_h*2/dy)): # top right to bottom right
-        
-    #     # Start recording for 'capture_time' seconds
-    #     pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
-    #     data = pgr_future.result()
-    #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
-        
-    #     ball.move(0, dy)
-
-    #     ball_y_coord += dy
-    #     if ball_y_coord <= grid_h:
-    #         labeled_ball_positions.append(2)
-    #     elif ball_y_coord <= grid_h*2:
-    #         labeled_ball_positions.append(5)
-    #     else:
-    #         labeled_ball_positions.append(8)
-            
-    # for i in range(round(grid_w*2/dx)): # bottom right to bottom left
-       
-    #     # Start recording for 'capture_time' seconds
-    #     pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
-    #     data = pgr_future.result()
-    #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
-        
-    #     ball.move(-dx, 0)
-
-    #     ball_x_coord -= dx
-    #     if ball_x_coord <= grid_w:
-    #         labeled_ball_positions.append(6)
-    #     elif ball_x_coord <= grid_w*2:
-    #         labeled_ball_positions.append(7)
-    #     else:
-    #         labeled_ball_positions.append(8) 
-            
-    # for i in range(round(grid_h*2/dy)): # bottom left to top left
-        
-    #     # Start recording for 'capture_time' seconds
-    #     pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
-    #     data = pgr_future.result()
-    #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
-        
-    #     ball.move(0, -dy)
-
-    #     ball_y_coord -= dy
-    #     if ball_y_coord <= grid_h:
-    #         labeled_ball_positions.append(0)
-    #     elif ball_y_coord <= grid_h*2:
-    #         labeled_ball_positions.append(3)
-    #     else:
-    #         labeled_ball_positions.append(6)
     
     ball.undraw()
 
