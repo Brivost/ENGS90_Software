@@ -214,13 +214,13 @@ def validate(centroids):
     dy = 3
     labeled_ball_positions = []
     validation = []
+    averaged_validation = []
 
     for i in range(round(grid_w/10)): # top left to top right, grid_w*2/dx
         
         # Start recording for 'capture_time' seconds
         pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
         data = pgr_future.result()
-        # data = data[0] # grab first data point as only one, to capture data
         validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
         
         ball.move(dx, 0)
@@ -273,14 +273,21 @@ def validate(centroids):
     print("Number of elements from core: ", len(validation))
     print(validation)
 
+    # Average samples if Core took more than one sample at a single ball position
+    for sample in validation: 
+        sample[0] = np.mean(sample[0]) # Average x
+        sample[1] = np.mean(sample[1]) # Average y
+        sample[2] = np.mean(sample[2]) # Average conf
+        averaged_validation.append(sample)
+
     # Compare ball_positions and validation arrays
-    classified_validation = classify(centroids, validation, conf_thresh)
+    classified_validation = classify(centroids, averaged_validation, conf_thresh)
 
     print(classified_validation)
 
     percent_correct = (sum(1 for a,b in zip(labeled_ball_positions, classified_validation) if a ==b)/len(labeled_ball_positions)) * 100
 
-    print(f"Pupil Core is currently {percent_correct}% accuracte")
+    print(f"Pupil Core is {percent_correct}% accurate currently")
 
 
 
