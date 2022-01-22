@@ -154,13 +154,11 @@ def classify(centroids, data, conf_thresh):
     labeled = []
     
     for sample in data:
-        sample = np.concatenate(sample) #Combine 3 lists (x,y,conf) into 1 list
         value = 9 #Classify as 9 if the sample does not meet the confidence threshold
         if sample[2] >= conf_thresh: 
             distances = [math.sqrt((sample[0] - point[0])**2 + (sample[1] - point[1])**2) for point in centroids]
             value = distances.index(min(distances))
-        labeled.append(value)
-        # labeled.append(np.insert(sample, 0, value))
+        labeled.append(np.insert(sample, 0, value))
         
     return labeled
 
@@ -193,9 +191,18 @@ def validate(centroids):
     p = PupilCore()
     
     # VALIDATION PART 1
-    # Set up circle
-    ball = Circle(Point(grid_w/2, grid_h/2), radius)
-    ball_x_coord = grid_w/2 # will be incremented to keep track of ball center
+    # # Set up circle (TOP LEFT)
+    # ball = Circle(Point(grid_w/2, grid_h/2), radius)
+    # ball_x_coord = grid_w/2 # will be incremented to keep track of ball center
+    # ball_y_coord = grid_h/2
+    # ball.setFill(color)
+    # ball.setOutline(color)
+    # ball.draw(win)
+
+    # Set up circle (TOP RIGHT)
+    ball = Circle(Point(grid_w/2*5, grid_h/2), radius)
+    ball_x_coord = grid_w/2*5 # will be incremented to keep track of ball center
+    ball_y_coord = grid_h/2
     ball.setFill(color)
     ball.setOutline(color)
     ball.draw(win)
@@ -215,24 +222,105 @@ def validate(centroids):
     labeled_ball_positions = []
     validation = []
     averaged_validation = []
+    classified_grid_number = []
 
-    for i in range(round(grid_w/10)): # top left to top right, grid_w*2/dx
+    for i in range(round(grid_w*2/dx)): # top right to top left
         
         # Start recording for 'capture_time' seconds
         pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
         data = pgr_future.result()
         validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
         
-        ball.move(dx, 0)
-        #time.sleep(1/sampling_rate) # don't actually need?
+        ball.move(-dx, 0)
 
-        ball_x_coord += dx
+        ball_x_coord -= dx
         if ball_x_coord <= grid_w:
             labeled_ball_positions.append(0)
         elif ball_x_coord <= grid_w*2:
             labeled_ball_positions.append(1)
         else:
             labeled_ball_positions.append(2)        
+
+    for i in range(round(grid_h*2/dy)): # top left to bottom left
+        
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(0, dy)
+
+        ball_y_coord += dy
+        if ball_y_coord <= grid_h:
+            labeled_ball_positions.append(0)
+        elif ball_y_coord <= grid_h*2:
+            labeled_ball_positions.append(3)
+        else:
+            labeled_ball_positions.append(6)
+
+    for i in range(round(grid_w*2/dx)): # bottom left to bottom right
+       
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(dx, 0)
+
+        ball_x_coord += dx
+        if ball_x_coord <= grid_w:
+            labeled_ball_positions.append(6)
+        elif ball_x_coord <= grid_w*2:
+            labeled_ball_positions.append(7)
+        else:
+            labeled_ball_positions.append(8) 
+
+    for i in range(round(grid_h/dy)): # bottom right to center right
+        
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(0, -dy)
+
+        ball_y_coord -= dy
+        if ball_y_coord <= grid_h*2:
+            labeled_ball_positions.append(5)
+        else:
+            labeled_ball_positions.append(8)
+
+    for i in range(round(grid_w/dx)): # center right to center
+        
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(-dx, 0)
+
+        ball_x_coord -= dx
+        if ball_x_coord <= grid_w*2:
+            labeled_ball_positions.append(4)
+        else:
+            labeled_ball_positions.append(5)  
+
+    # for i in range(round(grid_w*2/dx)): # top left to top right
+        
+    #     # Start recording for 'capture_time' seconds
+    #     pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
+    #     data = pgr_future.result()
+    #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+    #     ball.move(dx, 0)
+
+    #     ball_x_coord += dx
+    #     if ball_x_coord <= grid_w:
+    #         labeled_ball_positions.append(0)
+    #     elif ball_x_coord <= grid_w*2:
+    #         labeled_ball_positions.append(1)
+    #     else:
+    #         labeled_ball_positions.append(2)        
     
     # for i in range(round(grid_h*2/dy)): # top right to bottom right
         
@@ -242,8 +330,14 @@ def validate(centroids):
     #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
         
     #     ball.move(0, dy)
-    #     time.sleep(1/sampling_rate)
-    #     ball_positions.append(ball.getCenter())
+
+    #     ball_y_coord += dy
+    #     if ball_y_coord <= grid_h:
+    #         labeled_ball_positions.append(2)
+    #     elif ball_y_coord <= grid_h*2:
+    #         labeled_ball_positions.append(5)
+    #     else:
+    #         labeled_ball_positions.append(8)
             
     # for i in range(round(grid_w*2/dx)): # bottom right to bottom left
        
@@ -253,8 +347,14 @@ def validate(centroids):
     #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
         
     #     ball.move(-dx, 0)
-    #     time.sleep(1/sampling_rate)
-    #     ball_positions.append(ball.getCenter())
+
+    #     ball_x_coord -= dx
+    #     if ball_x_coord <= grid_w:
+    #         labeled_ball_positions.append(6)
+    #     elif ball_x_coord <= grid_w*2:
+    #         labeled_ball_positions.append(7)
+    #     else:
+    #         labeled_ball_positions.append(8) 
             
     # for i in range(round(grid_h*2/dy)): # bottom left to top left
         
@@ -264,14 +364,16 @@ def validate(centroids):
     #     validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
         
     #     ball.move(0, -dy)
-    #     time.sleep(1/sampling_rate)
-    #     ball_positions.append(ball.getCenter())
+
+    #     ball_y_coord -= dy
+    #     if ball_y_coord <= grid_h:
+    #         labeled_ball_positions.append(0)
+    #     elif ball_y_coord <= grid_h*2:
+    #         labeled_ball_positions.append(3)
+    #     else:
+    #         labeled_ball_positions.append(6)
     
     ball.undraw()
-
-    print("Ball positions: ", labeled_ball_positions)
-    print("Number of elements from core: ", len(validation))
-    print(validation)
 
     # Average samples if Core took more than one sample at a single ball position
     for sample in validation: 
@@ -279,34 +381,16 @@ def validate(centroids):
         sample[1] = np.mean(sample[1]) # Average y
         sample[2] = np.mean(sample[2]) # Average conf
         averaged_validation.append(sample)
-
+    
     # Compare ball_positions and validation arrays
-    classified_validation = classify(centroids, averaged_validation, conf_thresh)
+    classified_validation = classify(centroids, averaged_validation, conf_thresh)        
 
-    print(classified_validation)
+    for sample in classified_validation: # Extract grid number from classified data
+        classified_grid_number.append(sample[0])
 
-    percent_correct = (sum(1 for a,b in zip(labeled_ball_positions, classified_validation) if a ==b)/len(labeled_ball_positions)) * 100
+    percent_correct = round((sum(1 for a,b in zip(labeled_ball_positions, classified_grid_number) if a ==b)/len(labeled_ball_positions)) * 100)
 
     print(f"Pupil Core is {percent_correct}% accurate currently")
-
-
-
-    # # VALIDATION PART 2
-    # # Set up circle
-    # ball = Circle(Point(grid_w/2*3, grid_h/2), radius)
-    # ball.setFill(color)
-    # ball.setOutline(color)
-    # ball.draw(win)
-
-    # head = Text(Point(screen_width/2,screen_height/3), "Validation Part 2").draw(win)
-    # head.setSize(30)
-    # head.setStyle('bold')
-    # sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot" + '\n' + "Press any key to begin").draw(win)
-    # sub.setSize(20)
-
-    # win.getKey()
-    # head.undraw()
-    # sub.undraw()
 
 
 
