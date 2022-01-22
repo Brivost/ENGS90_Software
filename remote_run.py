@@ -215,7 +215,8 @@ def validate(centroids):
     averaged_validation = []
     classified_grid_number = []
 
-    for i in range(round(grid_w*2/dx)): # top right to top left
+    # top right to top left
+    for i in range(round(grid_w*2/dx)): 
         
         # Start recording for 'capture_time' seconds
         pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
@@ -232,7 +233,8 @@ def validate(centroids):
         else:
             labeled_ball_positions.append(2)        
 
-    for i in range(round(grid_h*2/dy)): # top left to bottom left
+    # top left to bottom left
+    for i in range(round(grid_h*2/dy)): 
         
         # Start recording for 'capture_time' seconds
         pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
@@ -249,7 +251,8 @@ def validate(centroids):
         else:
             labeled_ball_positions.append(6)
 
-    for i in range(round(grid_w*2/dx)): # bottom left to bottom right
+    # bottom left to bottom right
+    for i in range(round(grid_w*2/dx)): 
        
         # Start recording for 'capture_time' seconds
         pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
@@ -266,7 +269,8 @@ def validate(centroids):
         else:
             labeled_ball_positions.append(8) 
 
-    for i in range(round(grid_h/dy)): # bottom right to center right
+    # bottom right to center right
+    for i in range(round(grid_h/dy)): 
         
         # Start recording for 'capture_time' seconds
         pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
@@ -281,7 +285,8 @@ def validate(centroids):
         else:
             labeled_ball_positions.append(8)
 
-    for i in range(round(grid_w/dx)): # center right to center
+    # center right to center
+    for i in range(round(grid_w/dx)): 
         
         # Start recording for 'capture_time' seconds
         pgr_future = p.pupil_grabber(topic='pupil.0.3d', seconds=capture_time)
@@ -308,7 +313,8 @@ def validate(centroids):
     # Compare ball_positions and validation arrays
     classified_validation = classify(centroids, averaged_validation, conf_thresh)        
 
-    for sample in classified_validation: # Extract grid number from classified data
+    # Extract grid number from classified data
+    for sample in classified_validation: 
         classified_grid_number.append(sample[0])
 
     percent_correct = round((sum(1 for a,b in zip(labeled_ball_positions, classified_grid_number) if a ==b)/len(labeled_ball_positions)) * 100)
