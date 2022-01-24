@@ -287,7 +287,7 @@ def record_data(outdir, port, centroids):
 
 if __name__ == "__main__":
     """
-    `python remote_run.py -o [output directory] -c [optional: path to csv of calibrated centroids]`
+    `python remote_run.py -o [output directory] -c [optional: path to csv of calibrated centroids, runs calibration protocol if omitted] -p [optional: arduino port, defaults to COM4]`
 
     """
     parser = argparse.ArgumentParser()

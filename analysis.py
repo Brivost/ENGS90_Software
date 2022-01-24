@@ -8,10 +8,13 @@ import csv
 import os
 import math
 import random
+import statistics
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.fft import fft, fftfreq
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import train_test_split
+from sklearn import metrics
 
 def class_to_color(c):
     if c==0: return 'red'
@@ -77,9 +80,6 @@ def plot_data(data, centroids=None):
             plt.plot([(centroids[0][0] + centroids[3][0])/2,(centroids[2][0] + centroids[5][0])/2], [(centroids[0][1] + centroids[3][1])/2,(centroids[2][1] + centroids[5][1])/2],'--', color='black')
             plt.plot([(centroids[3][0] + centroids[6][0])/2,(centroids[5][0] + centroids[8][0])/2], [(centroids[3][1] + centroids[6][1])/2,(centroids[5][1] + centroids[8][1])/2],'--', color='black')
         n=n+1
-    
-
-        
 
     plt.show()
 
@@ -89,19 +89,80 @@ def separate(features, labels):
     """
     Run an LDA on the provided features and labels
     """
-    inds = set(random.sample(list(range(len(a))), int(frac*len(a))))
+    train_feat, test_feat, train_labels, test_labels = train_test_split(features, labels, test_size = 0.3, random_state = 42)
+    clf = LinearDiscriminantAnalysis()
+    clf.fit(train_feat, train_labels)
+    preds = clf.predict(test_feat)
 
-def feature_extraction(data, specific=False):
+    fpr, tpr, threshold = metrics.roc_curve(test_labels, preds)
+    roc_auc = metrics.auc(fpr, tpr)
+    print(roc_auc)
+
+
+def feature_extraction(data, labs, outdir):
     """
     Extract features from raw data
 
     data: List of lists, each sublist is a run
-    specific: If True, will return exact eye positions and confidence values in feature lists
+    labs: List of len(data), a label for each run
 
     Returns: List of lists, of relevant features 
     """
+    epoch_size = 130
+    feats = []
+    labels = []
+    for (run, l) in zip(data, labs):
+        n = math.floor(len(run)/(epoch_size/2))
+        l = (n-1)*[l]
+        labels += l
+        for i in range(1,n):
+            f = []
+
+            splice = np.array(run[(int)((i-1)*(epoch_size/2)):(int)((i*epoch_size/2)+epoch_size/2)])
+            classified = splice[:,0]
+
+            #Eye Tracking
+            f.append(statistics.mean(classified))                                                                                   #Average class
+            f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
+            f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
+            f.append((classified==9).sum())                                                                                         #Number of poor confidence values
+
+            #Head Tracking
+
+            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))
+            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))  
+            
+            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))         #Standard Deviation of acceleration
+            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))         #Standard Deviation magnitude of gyroscope
+            
+            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Maximum magnitude of acceleration
+            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Maximum magnitude of gyroscope
+
+            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minmum magnitude of acceleration
+            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Minimum magnitude of gyroscope
+
+
+            #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
+            #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
+            
+            feats.append(f)
+
+ 
+    with open(outdir + "sub/features.csv", 'w', newline='') as csvfile:
+
+        writer = csv.writer(csvfile, delimiter=',')
+        for i in range(len(feats)):
+            writer.writerow(feats[i] + [labels[i]])
+
+    return (feats, labels)
+
+
 
 
 if __name__ == "__main__":
     (data, centroids) = load('plot_test/')
-    plot_data(data, centroids)
+    (feat, lab) = feature_extraction(data, [0,1], 'plot_test/')
+    separate(feat, lab)
+
+
+    #plot_data(data, centroids)
