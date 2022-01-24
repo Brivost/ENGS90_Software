@@ -93,7 +93,9 @@ def separate(features, labels):
     clf = LinearDiscriminantAnalysis()
     clf.fit(train_feat, train_labels)
     preds = clf.predict(test_feat)
-
+    print(preds)
+    print("****")
+    print(test_labels)
     fpr, tpr, threshold = metrics.roc_curve(test_labels, preds)
     roc_auc = metrics.auc(fpr, tpr)
     print(roc_auc)
@@ -160,9 +162,12 @@ def feature_extraction(data, labs, outdir):
 
 
 if __name__ == "__main__":
-    (data, centroids) = load('plot_test/')
-    (feat, lab) = feature_extraction(data, [0,1], 'plot_test/')
+
+    (data, centroids) = load('readwatch/')
+    (feat, lab) = feature_extraction(data, [0,1,1], 'readwatch/')
+    print(len(feat))
     separate(feat, lab)
 
 
     #plot_data(data, centroids)
+

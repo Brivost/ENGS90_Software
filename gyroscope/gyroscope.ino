@@ -43,8 +43,6 @@ void loop() {
   Serial.print(accelerometer_x/4096.0);
   Serial.print(","); Serial.print(accelerometer_y/4096.0);
   Serial.print(","); Serial.print(accelerometer_z/4096.0);
-  // the following equation was taken from the documentation [MPU-6000/MPU-6050 Register Map and Description, p.30]
-
   Serial.print(","); Serial.print(gyro_x/131.0);
   Serial.print(","); Serial.print(gyro_y/131.0);
   Serial.print(","); Serial.print(gyro_z/131.0);
