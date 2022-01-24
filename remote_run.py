@@ -245,7 +245,11 @@ def record_data(outdir, port, centroids):
                 data[7].append(accel[4])
                 data[8].append(accel[5])
             
-            data = classify(centroids, np.array(data).astype(np.float).T, conf_thresh) 
+            try:
+                data = classify(centroids, np.array(data).astype(np.float).T, conf_thresh) 
+            except ValueError:
+                print("Failed case!")
+
             with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
                  writer = csv.writer(csvfile, delimiter=',')
                  for line in data:
