@@ -15,6 +15,7 @@ import math
 import time
 import os
 import zmq
+import analysis
 from scipy.spatial import distance
 from graphics import *
 import tkinter as tk
@@ -301,7 +302,7 @@ def validate(centroids):
     percent_correct = round((sum(1 for a,b in zip(labeled_ball_positions, classified_grid_number) if a ==b)/len(labeled_ball_positions)) * 100)
 
     win.close()
-    print(f"Pupil Core is {percent_correct}% accurate currently")
+    print("Pupil Core is " + str(percent_correct) + "% accurate currently")
 
 
 
@@ -446,6 +447,111 @@ def record_data(outdir, port, centroids):
     
 
 
+def trace_line(centroids):
+    #Set constants    
+    root = tk.Tk()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    root.destroy() # gets rid of default tk window but also gives strange warning
+    
+    grid_w = screen_width/3
+    grid_h = screen_height/3
+
+    radius = 30         #dot properties
+    color = 'black'
+    conf_thresh = .7   #confidence threshold
+    sampling_rate = 120 # Core collects 120 samples/sec
+    capture_time = 1/sampling_rate # Amount of time for Core to collect
+
+    # Set up graphics window
+    win = GraphWin("Line Trace", screen_width, screen_height)
+    win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height, 0, 0)) # change window position
+
+    
+    #Connect to Pupil Core
+    #p = PupilCore()
+
+    # Set up circle (TOP RIGHT)
+    ball = Circle(Point(0, grid_h*(3.0/2.0)), radius)
+    ball.setFill(color)
+    ball.setOutline(color)
+    ball.draw(win)
+    
+    head = Text(Point(screen_width/2,screen_height/3), "Line Trace").draw(win)
+    head.setSize(30)
+    head.setStyle('bold')
+    sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot as it traces a line across the screen " + '\n' + "Press any key to begin").draw(win)
+    sub.setSize(20)
+
+    win.getKey()
+    head.undraw()
+    sub.undraw()
+
+    dx = 3
+    dy = 3
+    
+    validation_w = []
+    validation_h = []
+
+    #Horizontal glide
+    for i in range(round(screen_width/dx)): 
+        
+        # Start recording for 'capture_time' seconds
+        #pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        #data = pgr_future.result()
+        #validation_w.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]]) 
+        ball.move(dx, 0)
+    
+    ball.undraw()
+
+    ball = Circle(Point(screen_width/2.0, 0), radius)
+    ball.setFill(color)
+    ball.setOutline(color)
+
+    ball.draw(win)
+    win.getKey()
+
+    for i in range(round(screen_height/dy)): 
+        
+        # Start recording for 'capture_time' seconds
+        #pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        #data = pgr_future.result()
+        #validation_h.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]]) 
+        ball.move(0, dy)
+    
+    avg_vw = []
+    avg_vh = []
+    for sample in validation_w: 
+        sample[0] = np.mean(sample[0]) # Average x
+        sample[1] = np.mean(sample[1]) # Average y
+        sample[2] = np.mean(sample[2]) # Average conf
+        avg_vw.append(sample)
+    
+    for sample in validation_h: 
+        sample[0] = np.mean(sample[0]) # Average x
+        sample[1] = np.mean(sample[1]) # Average y
+        sample[2] = np.mean(sample[2]) # Average conf
+        avg_vh.append(sample)
+    
+    classified_validation_w = classify(centroids, avg_vw, conf_thresh)       
+    classified_validation_h = classify(centroids, avg_vh, conf_thresh)
+
+    plt.subplot(1,2,1)
+    for (c, x, y) in zip(classified_validation_w[0], classified_validation_w[1], classified_validation_w[2]):
+        plt.plot(x, y, '.', color=class_to_color(c)) 
+    if centroids != None:
+        for (x,y) in centroids:
+            plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y]))) 
+    plt.subplot(1,2,2)
+    for (c, x, y) in zip(classified_validation_h[0], classified_validation_h[1], classified_validation_h[2]):
+            plt.plot(x, y, '.', color=class_to_color(c)) 
+    if centroids != None:
+        for (x,y) in centroids:
+            plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))          
+
+    plt.show()
+
+
 if __name__ == "__main__":
     """
     `python remote_run.py -o [output directory] -c [optional: path to csv of calibrated centroids, runs calibration protocol if omitted] 
@@ -457,12 +563,16 @@ if __name__ == "__main__":
     parser.add_argument("-c", metavar=("Path to csv of calibrated centroids"))
     parser.add_argument("-p", metavar=("Arduino port"))
     parser.add_argument('-v', action='store_true')
+    parser.add_argument('-l', action='store_true')
     args = parser.parse_args()
+
+    if args.l:
+        trace_line(None)
 
     #make the output directory if it does not exist
     if not os.path.isdir(args.o):
         os.makedirs(args.o, exist_ok=True)
-    
+
     if args.p == None:
         port = "COM4"
     else: port = args.p
