@@ -28,6 +28,7 @@ def calibrate(outdir):
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
+    root.destroy()
     
     grid_w = screen_width/3
     grid_h = screen_height/3
@@ -54,9 +55,6 @@ def calibrate(outdir):
     
 
 #Connect to Pupil Core
-    # ctx = zmq.Context()
-    # pupil_remote = zmq.Socket(ctx, zmq.REQ)
-    # pupil_remote.connect('tcp://127.0.0.1:50020')
     p = PupilCore()
 
     calibration = []
@@ -145,6 +143,168 @@ def calibrate(outdir):
     return centroids  
 
 
+def validate(centroids):
+    """
+    Estimates accuracy of classifer post-calibration
+    
+    centroids: calibrated list of centroid positions
+    """
+    #Set constants    
+    root = tk.Tk()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    root.destroy() # gets rid of default tk window but also gives strange warning
+    
+    grid_w = screen_width/3
+    grid_h = screen_height/3
+
+    radius = 30         #dot properties
+    color = 'black'
+    conf_thresh = .7   #confidence threshold
+    sampling_rate = 120 # Core collects 120 samples/sec
+    capture_time = 1/sampling_rate # Amount of time for Core to collect
+
+    # Set up graphics window
+    win = GraphWin("Validation", screen_width, screen_height)
+    win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height, 0, 0)) # change window position
+    
+    #Connect to Pupil Core
+    p = PupilCore()
+
+    # Set up circle (TOP RIGHT)
+    ball = Circle(Point(grid_w/2*5, grid_h/2), radius)
+    ball_x_coord = grid_w/2*5 # will be incremented to keep track of ball center
+    ball_y_coord = grid_h/2
+    ball.setFill(color)
+    ball.setOutline(color)
+    ball.draw(win)
+    
+    head = Text(Point(screen_width/2,screen_height/3), "Validation Part 1").draw(win)
+    head.setSize(30)
+    head.setStyle('bold')
+    sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot as it traces the letter 'G' " + '\n' + "Press any key to begin").draw(win)
+    sub.setSize(20)
+
+    win.getKey()
+    head.undraw()
+    sub.undraw()
+
+    dx = 3
+    dy = 3
+    labeled_ball_positions = []
+    validation = []
+    averaged_validation = []
+    classified_grid_number = []
+
+    # top right to top left
+    for i in range(round(grid_w*2/dx)): 
+        
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(-dx, 0)
+
+        ball_x_coord -= dx
+        if ball_x_coord <= grid_w:
+            labeled_ball_positions.append(0)
+        elif ball_x_coord <= grid_w*2:
+            labeled_ball_positions.append(1)
+        else:
+            labeled_ball_positions.append(2)        
+
+    # top left to bottom left
+    for i in range(round(grid_h*2/dy)): 
+        
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(0, dy)
+
+        ball_y_coord += dy
+        if ball_y_coord <= grid_h:
+            labeled_ball_positions.append(0)
+        elif ball_y_coord <= grid_h*2:
+            labeled_ball_positions.append(3)
+        else:
+            labeled_ball_positions.append(6)
+
+    # bottom left to bottom right
+    for i in range(round(grid_w*2/dx)): 
+       
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(dx, 0)
+
+        ball_x_coord += dx
+        if ball_x_coord <= grid_w:
+            labeled_ball_positions.append(6)
+        elif ball_x_coord <= grid_w*2:
+            labeled_ball_positions.append(7)
+        else:
+            labeled_ball_positions.append(8) 
+
+    # bottom right to center right
+    for i in range(round(grid_h/dy)): 
+        
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(0, -dy)
+
+        ball_y_coord -= dy
+        if ball_y_coord <= grid_h*2:
+            labeled_ball_positions.append(5)
+        else:
+            labeled_ball_positions.append(8)
+
+    # center right to center
+    for i in range(round(grid_w/dx)): 
+        
+        # Start recording for 'capture_time' seconds
+        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        data = pgr_future.result()
+        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        
+        ball.move(-dx, 0)
+
+        ball_x_coord -= dx
+        if ball_x_coord <= grid_w*2:
+            labeled_ball_positions.append(4)
+        else:
+            labeled_ball_positions.append(5)  
+    
+    ball.undraw()
+
+    # Average samples if Core took more than one sample at a single ball position
+    for sample in validation: 
+        sample[0] = np.mean(sample[0]) # Average x
+        sample[1] = np.mean(sample[1]) # Average y
+        sample[2] = np.mean(sample[2]) # Average conf
+        averaged_validation.append(sample)
+    
+    # Compare ball_positions and validation arrays
+    classified_validation = classify(centroids, averaged_validation, conf_thresh)        
+
+    # Extract grid number from classified data
+    for sample in classified_validation: 
+        classified_grid_number.append(sample[0])
+
+    percent_correct = round((sum(1 for a,b in zip(labeled_ball_positions, classified_grid_number) if a ==b)/len(labeled_ball_positions)) * 100)
+
+    win.close()
+    print(f"Pupil Core is {percent_correct}% accurate currently")
+
+
+
 def classify(centroids, data, conf_thresh):
     """ Classifies pupil x,y position in data matrix into grid number
         Classification is simply determined by nearest calibrated point
@@ -192,6 +352,7 @@ def record_data(outdir, port, centroids):
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
+    root.destroy()
     finished = False
     recording = False
     run_num = 0
@@ -280,20 +441,22 @@ def record_data(outdir, port, centroids):
                 raw.append((pgr_future.result(),accel)) #Stitch raw data together
             print("-------- %s -------" % (time.time() - start_time))
 
-
+    win.close()
     ard.close()
     
 
 
 if __name__ == "__main__":
     """
-    `python remote_run.py -o [output directory] -c [optional: path to csv of calibrated centroids, runs calibration protocol if omitted] -p [optional: arduino port, defaults to COM4]`
+    `python remote_run.py -o [output directory] -c [optional: path to csv of calibrated centroids, runs calibration protocol if omitted] 
+    -v [if present, run validation protocol] -p [optional: arduino port, defaults to COM4]`
 
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", metavar=("Output directory"))
     parser.add_argument("-c", metavar=("Path to csv of calibrated centroids"))
     parser.add_argument("-p", metavar=("Arduino port"))
+    parser.add_argument('-v', action='store_true')
     args = parser.parse_args()
 
     #make the output directory if it does not exist
@@ -314,6 +477,9 @@ if __name__ == "__main__":
             for row in reader:
                 centroids.append([float(x) for x in row[0].split(',')])
     
+    #Run validation function if specified
+    if args.v:
+        validate(centroids)
     
     #Run the experiment
     record_data(args.o, port, centroids)
