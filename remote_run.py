@@ -303,9 +303,9 @@ def validate(centroids):
     for predicted, actual, sample in zip(classified_grid_number, labeled_ball_positions, averaged_validation):
         print(f"Predicted: {predicted}, Actual: {actual}, Sample Coords: {sample[0]}, {sample[1]}")
         if predicted == actual:
-            plt.plot(sample[0], sample[1], '.', 'green')
+            plt.plot(sample[0], sample[1], '.', color = 'green')
         else: 
-            plt.plot(sample[0], sample[1], '.', 'red')
+            plt.plot(sample[0], sample[1], '.', color = 'red')
 
     plt.show()
 
