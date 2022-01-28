@@ -291,9 +291,6 @@ def validate(centroids):
         sample[1] = np.mean(sample[1]) # Average y
         sample[2] = np.mean(sample[2]) # Average conf
         averaged_validation.append(sample)
-
-    for sample in averaged_validation: # Plots pupil core data
-        plt.plot(sample[0], sample[1], '.')
     
     # Compare ball_positions and validation arrays
     classified_validation = classify(centroids, averaged_validation, conf_thresh)        
@@ -304,10 +301,13 @@ def validate(centroids):
 
     # Plot correctly and incorrectly classified samples
     for predicted, actual, sample in zip(classified_grid_number, labeled_ball_positions, averaged_validation):
+        print(f"Predicted: {predicted}, Actual: {actual}, Sample Coords: {sample[0]}, {sample[1]}")
         if predicted == actual:
-            plt.plot(sample[0], sample[1], '.', 'g')
+            plt.plot(sample[0], sample[1], '.', 'green')
         else: 
-            plt.plot(sample[0], sample[1], '.', 'r')
+            plt.plot(sample[0], sample[1], '.', 'red')
+
+    plt.show()
 
     percent_correct = round((sum(1 for a,b in zip(labeled_ball_positions, classified_grid_number) if a ==b)/len(labeled_ball_positions)) * 100)
 
