@@ -367,7 +367,7 @@ def record_data(outdir, port, centroids):
     head = Text(Point(screen_width/2,screen_height/3), "Testing").draw(win)
     head.setSize(30)
     head.setStyle('bold')
-    sub = Text(Point(screen_width/2,screen_height/3+75), "Press 'r' to begin a run and 'r' again to end it" + '\n' + "Press 'c' to cancel a run. Data will not be saved'" + '\n' + "Press 'q' to end the experiment").draw(win)
+    sub = Text(Point(screen_width/2,screen_height/3+75), "Press 'r' to begin a run and 'r' again to end it" + '\n' + "Press 'c' to cancel a run. Data will not be saved" + '\n' + "Press 'q' to end the experiment").draw(win)
     sub.setSize(20)
 
     rec = Text(Point(screen_width/2,screen_height/3+200), "RECORDING")
@@ -578,12 +578,61 @@ def trace_line(centroids):
     plt.show()
 
 
+
+def grid():
+    #Set constants   
+    root = tk.Tk()
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    root.destroy()
+    
+    grid_w = screen_width/3
+    grid_h = screen_height/3
+
+    radius = 30         #dot properties
+    color = 'black'
+    calibrate_t = 3     #time for calibration at each point
+    conf_thresh = .7   #confidence threshold
+    max_deviations = 2 #maximum deviations for outlier trimming
+
+    win = GraphWin("Grid", screen_width, screen_height)
+    win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height,0,0))
+
+    n = 0
+    for i in range(0,3):
+        for j in range(0,3):
+            #Move the point
+            label = Text(Point(grid_w/2+ grid_w*j,grid_h/2+ grid_h*i), str(n))
+            label.setSize(30)
+            label.setStyle('bold')
+            label.draw(win)
+
+            n+=1
+
+    l1 = Line(Point(grid_w, 0), Point(grid_w, screen_height))
+    l1.draw(win)
+    l2 = Line(Point(grid_w*2, 0), Point(grid_w*2, screen_height))
+    l2.draw(win)
+
+    l3 = Line(Point(0, grid_h), Point(screen_width, grid_h))
+    l3.draw(win)
+
+    l4 = Line(Point(0, grid_h*2), Point(screen_width, grid_h*2))
+    l4.draw(win)
+    win.getKey()
+    win.close()
+
+
+
+
+
 if __name__ == "__main__":
     """
     `python remote_run.py -o [output directory] -c [optional: path to csv of calibrated centroids, runs calibration protocol if omitted] 
     -v [if present, run validation protocol] -p [optional: arduino port, defaults to COM4]`
 
     """
+    
     parser = argparse.ArgumentParser()
     parser.add_argument("-o", metavar=("Output directory"))
     parser.add_argument("-c", metavar=("Path to csv of calibrated centroids"))
@@ -619,5 +668,5 @@ if __name__ == "__main__":
         trace_line(centroids)
     #Run the experiment
     record_data(args.o, port, centroids)
-  
+    
 
