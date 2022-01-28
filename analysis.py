@@ -92,19 +92,50 @@ def plot_accel(data):
     for run in data:
         d = np.array(run).T
         t = np.linspace(0,len(d[0]),len(d[0]))
+        figure, axes = plt.subplots(nrows=2, ncols=3)
+        figure.tight_layout()
         for i in range(1,7):
             plt.subplot(2,3,i)
-            print(d[i+3])
-            print(t)
-            plt.plot(t, d[i+3])
+            ax = plt.gca()
+            ax.get_xaxis().set_visible(False)
+            
 
+            plt.plot(t, d[i+3])
+            """
             if i==1: 
                 plt.title("X Axis")
-                plt.ylabel('Accelerometer')
+                plt.ylabel('Accelerometer (m/s^2)')
             elif i==2: plt.title("Y Axis") 
             elif i==3: plt.title("Z Axis") 
-            elif i==4: plt.ylabel("Gyroscope")
-       
+            elif i==4: plt.ylabel("Gyroscope (deg/s)")
+            """
+            
+            if i==1 and n==0:
+                mid = -7
+            elif i==2 and n==0:
+                mid = -2.5
+            elif i==3 and n==0:
+                mid = 3.5
+
+            if i==1 or i==2 or i==3 and n==0:
+                
+                ax.set_ylim([mid-9, mid+9])
+
+            if i==4 or i==5 or i==6 and n==0:
+                
+                ax.set_ylim([-1000, 1000])
+            
+            if i==1 and n==1:
+                mid = -10
+            elif i==2 and n==1:
+                mid = 0
+            elif i==3 and n==1:
+                mid = 5
+            if i==1 or i==2 or i==3 and n==1:
+                ax.set_ylim([mid-6, mid+6])
+            if i==4 or i==5 or i==6 and n==1:
+                ax.set_ylim([-2000, 2000])
+        
         plt.savefig('figures/' + str(n) + ".png")
         n+=1
         plt.figure()
