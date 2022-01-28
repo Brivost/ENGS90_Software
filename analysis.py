@@ -84,6 +84,34 @@ def plot_data(data, centroids=None, lines=False):
 
     plt.show()
 
+def plot_accel(data):
+    """
+    Plot accelerometry and gyroscopic data signatures from IMU
+    """
+    n = 0
+    for run in data:
+        d = np.array(run).T
+        t = np.linspace(0,len(d[0]),len(d[0]))
+        for i in range(1,7):
+            plt.subplot(2,3,i)
+            print(d[i+3])
+            print(t)
+            plt.plot(t, d[i+3])
+
+            if i==1: 
+                plt.title("X Axis")
+                plt.ylabel('Accelerometer')
+            elif i==2: plt.title("Y Axis") 
+            elif i==3: plt.title("Z Axis") 
+            elif i==4: plt.ylabel("Gyroscope")
+       
+        plt.savefig('figures/' + str(n) + ".png")
+        n+=1
+        plt.figure()
+
+
+
+
 
 
 def separate(features, labels):
@@ -164,11 +192,11 @@ def feature_extraction(data, labs, outdir):
 
 if __name__ == "__main__":
 
-    (data, centroids) = load('readwatch/')
-    (feat, lab) = feature_extraction(data, [0,1,1], 'readwatch/')
-    print(len(feat))
-    separate(feat, lab)
+    (data, centroids) = load('line_trace/')
+    #(feat, lab) = feature_extraction(data, [0,1,1], 'readwatch/')
+    #print(len(feat))
+    #separate(feat, lab)
 
 
     #plot_data(data, centroids)
-
+    plot_accel(data)
