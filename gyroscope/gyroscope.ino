@@ -8,6 +8,13 @@ int16_t temperature; // variables for temperature data
 
 char tmp_str[7]; // temporary variable used in convert function
 
+float xAccel;
+float yAccel;
+float zAccel;
+
+float xGyro;
+
+
 char* convert_int16_to_str(int16_t i) { // converts int16 to string. Moreover, resulting strings will have the same length in the debug monitor.
   sprintf(tmp_str, "%6d", i);
   return tmp_str;
@@ -37,17 +44,24 @@ void loop() {
   gyro_x = (Wire.read()<<8 | Wire.read()); // reading registers: 0x43 (GYRO_XOUT_H) and 0x44 (GYRO_XOUT_L)
   gyro_y = (Wire.read()<<8 | Wire.read()); // reading registers: 0x45 (GYRO_YOUT_H) and 0x46 (GYRO_YOUT_L)
   gyro_z = (Wire.read()<<8 | Wire.read()); // reading registers: 0x47 (GYRO_ZOUT_H) and 0x48 (GYRO_ZOUT_L)
+
+
+  xAccel = map(accelerometer_x,-15700,17000,-980,980);
+  yAccel = map(accelerometer_y,-16500,16100,-980,980);
+  zAccel = map(accelerometer_z,-16500,16000,-980,980);
   
   // print out data
   //Serial.print(convert_int16_to_str(accelerometer_x));
-  Serial.print(accelerometer_x/4096.0);
-  Serial.print(","); Serial.print(accelerometer_y/4096.0);
-  Serial.print(","); Serial.print(accelerometer_z/4096.0);
-  Serial.print(","); Serial.print(gyro_x/131.0);
-  Serial.print(","); Serial.print(gyro_y/131.0);
-  Serial.print(","); Serial.print(gyro_z/131.0);
+  Serial.print(xAccel/100);
+  Serial.print(","); Serial.print(yAccel/100);
+  Serial.print(","); Serial.print(zAccel/100);
+  Serial.print(","); Serial.print((gyro_x + 325)/16.4);
+  Serial.print(","); Serial.print((gyro_y + 176)/16.4);
+  Serial.print(","); Serial.print((gyro_z + 78)/16.4);
   Serial.println();
+
+
   
   // delay
-  //delay(5);
+
 }

@@ -15,7 +15,7 @@ import math
 import time
 import os
 import zmq
-import analysis
+from analysis import class_to_color
 from scipy.spatial import distance
 from graphics import *
 import tkinter as tk
@@ -469,7 +469,7 @@ def trace_line(centroids):
 
     radius = 30         #dot properties
     color = 'black'
-    conf_thresh = .7   #confidence threshold
+    conf_thresh = .85   #confidence threshold
     sampling_rate = 120 # Core collects 120 samples/sec
     capture_time = 1/sampling_rate # Amount of time for Core to collect
 
@@ -479,7 +479,7 @@ def trace_line(centroids):
 
     
     #Connect to Pupil Core
-    #p = PupilCore()
+    p = PupilCore()
 
     # Set up circle (TOP RIGHT)
     ball = Circle(Point(0, grid_h*(3.0/2.0)), radius)
@@ -507,9 +507,10 @@ def trace_line(centroids):
     for i in range(round(screen_width/dx)): 
         
         # Start recording for 'capture_time' seconds
-        #pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
-        #data = pgr_future.result()
+        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        data = pgr_future.result()
         #validation_w.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]]) 
+        validation_w.append(data)
         ball.move(dx, 0)
     
     ball.undraw()
@@ -524,35 +525,60 @@ def trace_line(centroids):
     for i in range(round(screen_height/dy)): 
         
         # Start recording for 'capture_time' seconds
-        #pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
-        #data = pgr_future.result()
+        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+        data = pgr_future.result()
         #validation_h.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]]) 
+        validation_h.append(data)
         ball.move(0, dy)
     
-    avg_vw = []
-    avg_vh = []
-    for sample in validation_w: 
-        sample[0] = np.mean(sample[0]) # Average x
-        sample[1] = np.mean(sample[1]) # Average y
-        sample[2] = np.mean(sample[2]) # Average conf
-        avg_vw.append(sample)
+
+    data = [[],[],[]]
+    for p_d in validation_w:
+        p_data = [np.array([d[b'norm_pos'][0] for d in p_d]), np.array([d[b'norm_pos'][1] for d in p_d]), np.array([d[b'confidence'] for d in p_d])]
+   
+        if len(p_data) != 1:
+            p_data = [sample[np.array(p_data[2]) >= conf_thresh] for sample in p_data]
+            p_data = [np.average(sample) for sample in p_data]
+                 
+        data[0].append(p_data[0])
+        data[1].append(p_data[1])
+        data[2].append(p_data[2])
+            
+    try:
+        classified_validation_w = classify(centroids, np.array(data).astype(np.float).T, conf_thresh) 
+    except ValueError:
+        print("Failed case!")
+
+    data = [[],[],[]]
+    for p_d in validation_h:
+        p_data = [np.array([d[b'norm_pos'][0] for d in p_d]), np.array([d[b'norm_pos'][1] for d in p_d]), np.array([d[b'confidence'] for d in p_d])]
+   
+        if len(p_data) != 1:
+            p_data = [sample[np.array(p_data[2]) >= conf_thresh] for sample in p_data]
+            p_data = [np.average(sample) for sample in p_data]
+                 
+        data[0].append(p_data[0])
+        data[1].append(p_data[1])
+        data[2].append(p_data[2])
     
-    for sample in validation_h: 
-        sample[0] = np.mean(sample[0]) # Average x
-        sample[1] = np.mean(sample[1]) # Average y
-        sample[2] = np.mean(sample[2]) # Average conf
-        avg_vh.append(sample)
+
     
-    classified_validation_w = classify(centroids, avg_vw, conf_thresh)       
-    classified_validation_h = classify(centroids, avg_vh, conf_thresh)
+    try:
+        classified_validation_h = classify(centroids, np.array(data).astype(np.float).T, conf_thresh) 
+    except ValueError:
+        print("Failed case!")
+
+
 
     plt.subplot(1,2,1)
+    classified_validation_w = np.array(classified_validation_w).T
     for (c, x, y) in zip(classified_validation_w[0], classified_validation_w[1], classified_validation_w[2]):
         plt.plot(x, y, '.', color=class_to_color(c)) 
     if centroids != None:
         for (x,y) in centroids:
             plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y]))) 
     plt.subplot(1,2,2)
+    classified_validation_h = np.array(classified_validation_h).T
     for (c, x, y) in zip(classified_validation_h[0], classified_validation_h[1], classified_validation_h[2]):
             plt.plot(x, y, '.', color=class_to_color(c)) 
     if centroids != None:
@@ -576,10 +602,7 @@ if __name__ == "__main__":
     parser.add_argument('-l', action='store_true')
     args = parser.parse_args()
 
-    if args.l:
-        trace_line(None)
-
-    #make the output directory if it does not exist
+    #Make the output directory if it does not exist
     if not os.path.isdir(args.o):
         os.makedirs(args.o, exist_ok=True)
 
@@ -601,6 +624,9 @@ if __name__ == "__main__":
     if args.v:
         validate(centroids)
     
+    #Trace two lines and examine output, if specified
+    if args.l:
+        trace_line(centroids)
     #Run the experiment
     record_data(args.o, port, centroids)
   
