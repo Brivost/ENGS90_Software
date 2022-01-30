@@ -167,10 +167,23 @@ def separate(features, labels):
     fpr, tpr, threshold = metrics.roc_curve(test_labels, preds)
     roc_auc = metrics.auc(fpr, tpr)
     print(roc_auc)
+    
+
+   # plt.subplot(121)
 
     metrics.plot_roc_curve(clf, test_feat, test_labels)
-    plt.show()
+    
 
+    plt.figure()
+    importance = 10*clf.coef_[0]
+    print(importance)
+    # for i,v in enumerate(importance):
+    #     print('Feature: %0d, Score: %.5f' % (i,v))
+    full = ['Average Eye', '#Unique', '#Changes', '#Low-Conf', 'Avg Accel Mag', 'Avg Gyro Mag', 'Std Accel Mag', 'Std Gyro Mag', 'Accel Max', 'Gyro Max', 'Accel Min', 'Gyro Min']
+    justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
+    plt.bar(full, importance)
+    plt.xticks(rotation=90, fontsize=8)
+    plt.show()
 
 def feature_extraction(data, labs, outdir):
     """
@@ -201,7 +214,7 @@ def feature_extraction(data, labs, outdir):
             f.append((classified==9).sum())                                                                                         #Number of poor confidence values
 
             #Head Tracking
-
+            
             f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))
             f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))  
             
@@ -213,7 +226,7 @@ def feature_extraction(data, labs, outdir):
 
             f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minmum magnitude of acceleration
             f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Minimum magnitude of gyroscope
-
+            
 
             #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
             #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
@@ -238,6 +251,7 @@ if __name__ == "__main__":
 
     (feat, lab) = feature_extraction(data, [0,0,0,1], 'bigtest/')
     separate(feat, lab)
+
 
     (feat, lab) = feature_extraction(data, [0,0,1,0], 'bigtest/')
     separate(feat, lab)
