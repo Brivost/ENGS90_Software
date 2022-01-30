@@ -38,8 +38,9 @@ def load(datadir):
     data = []
     centroids = []
     for file in os.listdir(datadir):
-        filename = os.fsdecode(file)
 
+        filename = os.fsdecode(file)
+        print(filename)
         if filename.endswith(".csv"):   #Error handling to dodge hidden files and subdirectories
             read = []
             with open(datadir + '/' + filename, newline='') as csvfile:
@@ -63,9 +64,17 @@ def plot_data(data, centroids=None, lines=False):
     n_columns = math.ceil(len(data)/2)
     plt.figure(1)
     n = 1
+    
+    figure, axes = plt.subplots(nrows=2, ncols=2)
     for run in data:
         d = np.array(run).T
-        plt.subplot(2,n_columns,n)
+        ax = plt.subplot(2,n_columns,n)
+
+        if n==1: ax.title.set_text('Conversation')
+        elif n==2: ax.title.set_text('Reading')
+        elif n==3: ax.title.set_text('Simulated Seizure')
+        elif n==4: ax.title.set_text('Watching TV')
+
         for (c, x, y) in zip(d[0], d[1], d[2]):
             plt.plot(x, y, '.', color=class_to_color(c)) 
         if centroids != None:
@@ -82,6 +91,7 @@ def plot_data(data, centroids=None, lines=False):
                 plt.plot([(centroids[3][0] + centroids[6][0])/2,(centroids[5][0] + centroids[8][0])/2], [(centroids[3][1] + centroids[6][1])/2,(centroids[5][1] + centroids[8][1])/2],'--', color='black')
         n=n+1
 
+    figure.tight_layout()
     plt.show()
 
 def plot_accel(data):
@@ -153,12 +163,13 @@ def separate(features, labels):
     clf = LinearDiscriminantAnalysis()
     clf.fit(train_feat, train_labels)
     preds = clf.predict(test_feat)
-    print(preds)
-    print("****")
-    print(test_labels)
+
     fpr, tpr, threshold = metrics.roc_curve(test_labels, preds)
     roc_auc = metrics.auc(fpr, tpr)
     print(roc_auc)
+
+    metrics.plot_roc_curve(clf, test_feat, test_labels)
+    plt.show()
 
 
 def feature_extraction(data, labs, outdir):
@@ -223,11 +234,19 @@ def feature_extraction(data, labs, outdir):
 
 if __name__ == "__main__":
 
-    (data, centroids) = load('line_trace/')
-    #(feat, lab) = feature_extraction(data, [0,1,1], 'readwatch/')
-    #print(len(feat))
-    #separate(feat, lab)
+    (data, centroids) = load('bigtest/')
 
+    (feat, lab) = feature_extraction(data, [0,0,0,1], 'bigtest/')
+    separate(feat, lab)
+
+    (feat, lab) = feature_extraction(data, [0,0,1,0], 'bigtest/')
+    separate(feat, lab)
+
+    (feat, lab) = feature_extraction(data, [0,1,0,0], 'bigtest/')
+    separate(feat, lab)
+
+    (feat, lab) = feature_extraction(data, [1,0,0,0], 'bigtest/')
+    separate(feat, lab)
 
     #plot_data(data, centroids)
-    plot_accel(data)
+    #plot_accel(data)
