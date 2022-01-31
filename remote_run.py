@@ -150,6 +150,9 @@ def validate(centroids):
     
     centroids: calibrated list of centroid positions
     """
+
+    print(centroids)
+
     #Set constants    
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
@@ -307,14 +310,16 @@ def validate(centroids):
         else: 
             plt.plot(sample[0], sample[1], '.', color = 'red')
 
+    # Plot centroids
+    for sample in centroids:
+        plt.plot(sample[0], sample[1], '*', color=class_to_color(centroids.index(sample)))
+
     plt.show()
 
     percent_correct = round((sum(1 for a,b in zip(labeled_ball_positions, classified_grid_number) if a ==b)/len(labeled_ball_positions)) * 100)
 
     win.close()
     print("Pupil Core is " + str(percent_correct) + "% accurate currently")
-
-
 
 def classify(centroids, data, conf_thresh):
     """ Classifies pupil x,y position in data matrix into grid number
