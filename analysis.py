@@ -12,6 +12,7 @@ import statistics
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.fft import fft, fftfreq
+from scipy.stats import norm
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
@@ -161,7 +162,9 @@ def separate(features, labels):
     """
     train_feat, test_feat, train_labels, test_labels = train_test_split(features, labels, test_size = 0.3, random_state = 42)
     clf = LinearDiscriminantAnalysis()
-    clf.fit(train_feat, train_labels)
+    #clf.fit(train_feat, train_labels)
+    clf.fit_transform(train_feat, train_labels)
+    clf.transform(test_feat)
     preds = clf.predict(test_feat)
 
     fpr, tpr, threshold = metrics.roc_curve(test_labels, preds)
@@ -183,6 +186,47 @@ def separate(features, labels):
     justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
     plt.bar(full, importance)
     plt.xticks(rotation=90, fontsize=8)
+    plt.show()
+
+    plot_histo(features, labels, importance)
+
+def plot_histo(features, labels, coef):
+    mapped = []
+    # for feat in features:
+    #     for (c, f) in zip(coef, feat):
+    #         print(c*f)
+
+    norm_coef = coef / np.linalg.norm(np.array(coef))
+    features = np.array(features).dot(norm_coef.T)
+
+    
+
+    feat_1 = []
+    feat_0 = []
+
+    for (feat, l) in zip(features,labels):
+        if l==0: feat_1.append(feat)
+        else: feat_0.append(feat)
+            
+    #mapped_1 = [sum([c*f for (c,f) in zip(coef, feat)]) for feat in feat_1]
+    #mapped_0 = [sum([c*f for (c,f) in zip(coef, feat)]) for feat in feat_0]
+
+    plt.figure()
+    plt.hist(feat_1, bins=50, color='blue', stacked=True, alpha=0.8, ec='black', density=True)
+    plt.hist(feat_0, bins=50, color='red', stacked=True, alpha=0.8, ec='black', density=True)
+
+    xmin, xmax = plt.xlim()
+    mu1, std1 = norm.fit(feat_1)
+    mu0, std0 = norm.fit(feat_0)
+
+    x = np.linspace(xmin, xmax, 100)
+    p1 = norm.pdf(x, mu1, std1)
+    p0 = norm.pdf(x, mu0, std0)
+
+    plt.plot(x, p1, color='blue')
+    plt.plot(x, p0, color='red')
+
+
     plt.show()
 
 def feature_extraction(data, labs, outdir):
