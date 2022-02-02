@@ -18,7 +18,7 @@ from sklearn.model_selection import train_test_split
 from sklearn import metrics
 
 def class_to_color(c):
-    if c==0: return 'red'
+    if   c==0: return 'red'
     elif c==1: return 'pink'
     elif c==2: return 'orange'
     elif c==3: return 'yellow'
