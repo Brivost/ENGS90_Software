@@ -647,7 +647,9 @@ if __name__ == "__main__":
     if args.n == None:
         n = 3
     else:
-        n = args.n
+        n = int(args.n)
+
+    print(type(n))
 
     #Run calibration or load in calibrated centroids as indicated
     if args.c == None:
