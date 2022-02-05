@@ -173,7 +173,7 @@ def validate(centroids, n):
     win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height, 0, 0)) # change window position
     
     # #Connect to Pupil Core
-    # p = PupilCore()
+    p = PupilCore()
 
     # Set up circle (TOP LEFT)
     ball = Circle(Point(grid_w/2, grid_h/2), radius)
@@ -649,7 +649,6 @@ if __name__ == "__main__":
     else:
         n = args.n
 
-    print(n)
     #Run calibration or load in calibrated centroids as indicated
     if args.c == None:
         centroids = calibrate(args.o, n)
