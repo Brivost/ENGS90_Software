@@ -17,6 +17,8 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 
+#from remote_run import classify
+
 def class_to_color(c):
     if   c==0: return 'red'
     elif c==1: return 'pink'
@@ -28,30 +30,43 @@ def class_to_color(c):
     elif c==7: return 'purple'
     elif c==8: return 'black'
 
+
+
+
 def load(datadir):
     """ 
     Loads in data from specified directory
     
     datadir: string, path to csv data
 
+
     Returns: (List of lists, list of lists), sublists are data from each .csv file in the specified directory, second list is centroids
     """
     data = []
-    centroids = []
-    for file in os.listdir(datadir):
+    conf_thresh = .75
 
+    for file in os.listdir(datadir):
         filename = os.fsdecode(file)
         print(filename)
-        if filename.endswith(".csv"):   #Error handling to dodge hidden files and subdirectories
+        if filename.endswith(".csv") and "data" in filename:   #Error handling to dodge hidden files and subdirectories
             read = []
             with open(datadir + '/' + filename, newline='') as csvfile:
                 reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
                 for row in reader:
                     read.append([float(x) for x in row[0].split(',')])
-            if filename != 'centroids.csv': data.append(read)
-            else: centroids = read
+            print(read)
+            data.append(read)
+            
+    
+ 
+    return data
 
-    return (data, centroids)
+def load_centroids(cent):
+    centroids = []
+    with open(cent, newline='') as csvfile:
+        for row in reader:
+            centroids.append([float(x) for x in row[0].split(',')])
+    return centroids
 
 def plot_data(data, centroids=None, lines=False):
     """
@@ -291,8 +306,9 @@ def feature_extraction(data, labs, outdir):
 
 if __name__ == "__main__":
 
-    (data, centroids) = load('bigtest/')
+    data = load('test_scripts/')
 
+    """
     (feat, lab) = feature_extraction(data, [0,0,0,1], 'bigtest/')
     separate(feat, lab)
 
@@ -305,6 +321,4 @@ if __name__ == "__main__":
 
     (feat, lab) = feature_extraction(data, [1,0,0,0], 'bigtest/')
     separate(feat, lab)
-
-    #plot_data(data, centroids)
-    #plot_accel(data)
+    """

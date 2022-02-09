@@ -16,6 +16,7 @@ import time
 import os
 import zmq
 from analysis import class_to_color
+from process_raw import classify
 from scipy.spatial import distance
 from graphics import *
 import tkinter as tk
@@ -24,7 +25,7 @@ import matplotlib.pyplot as plt
 from cvd_pupillometry.pyplr.pupil import PupilCore
 from cvd_pupillometry.pyplr.utils import unpack_data_pandas
 
-def calibrate(outdir, n):
+def calibrate(outdir, n, two=False):
     #Set constants   
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
@@ -62,7 +63,7 @@ def calibrate(outdir, n):
     traces = []
     finished = False
 
-
+    num = 0
 # Calibrate at the centroid of each grid
     while not finished:
         for i in range(0,n):
@@ -119,7 +120,7 @@ def calibrate(outdir, n):
         head = Text(Point(screen_width/2,screen_height/3), "Finished!").draw(win)
         head.setSize(30)
         head.setStyle('bold')
-        sub = Text(Point(screen_width/2,screen_height/3+75), "Press 'r' to recalibrate or any other key to exit").draw(win)
+        sub = Text(Point(screen_width/2,screen_height/3+75), "Press 'r' to recalibrate, 's' to save centroids and record a new set, or any other key to exit").draw(win)
         sub.setSize(20)
         
 
@@ -131,12 +132,32 @@ def calibrate(outdir, n):
             plt.clf()
             centroids = []
             calibration = []
+        
+        elif win.getKey() == 's':
+            finished = False
+            head.undraw()
+            sub.undraw()
+            plt.clf()
+            with open(outdir + "centroids_" + str(num) + ".csv", 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile, delimiter=',')
+                for (x,y) in centroids:
+                    writer.writerow([x,y])
+            num+=1
+            centroids = []
+            calibration = []
+        
         else:
-            finished = True
+            if two == True:
+                finished = False
+                n = 2
+                two == False
+                num = "2x2"
+            else:
+                finished = True
 
     win.close()
 
-    with open(outdir + "centroids.csv", 'w', newline='') as csvfile:
+    with open(outdir + "centroids_" + str(num) + ".csv", 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         for (x,y) in centroids:
             writer.writerow([x,y])
@@ -390,17 +411,19 @@ def record_data(outdir, port, centroids):
                 data[6].append(accel[3])
                 data[7].append(accel[4])
                 data[8].append(accel[5])
-            
+            """
             try:
                 data = classify(centroids, np.array(data).astype(np.float).T, conf_thresh) 
             except ValueError:
                 print("Failed case!")
-
-            with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
-                 writer = csv.writer(csvfile, delimiter=',')
-                 for line in data:
-                    writer.writerow(line)
-            
+            """
+            try:
+                with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
+                    writer = csv.writer(csvfile, delimiter=',')
+                    for line in np.array(data).astype(np.float).T:
+                        writer.writerow(line)
+            except ValueError:
+                print("Failed case!")
             raw = []
             run_num = run_num+1
         #Cancel run
