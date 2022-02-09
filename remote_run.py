@@ -25,15 +25,16 @@ import matplotlib.pyplot as plt
 from cvd_pupillometry.pyplr.pupil import PupilCore
 from cvd_pupillometry.pyplr.utils import unpack_data_pandas
 
-def calibrate(outdir, n, two=False):
+def calibrate(outdir, n, two=True):
     #Set constants   
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
     screen_height = root.winfo_screenheight()
     root.destroy()
-    
-    grid_w = screen_width/n
-    grid_h = screen_height/n
+    g = n
+
+    grid_w = screen_width/g
+    grid_h = screen_height/g
 
     radius = 30         #dot properties
     color = 'black'
@@ -55,7 +56,7 @@ def calibrate(outdir, n, two=False):
     head.undraw()
     sub.undraw()
     
-
+    
 #Connect to Pupil Core
     p = PupilCore()
 
@@ -66,8 +67,8 @@ def calibrate(outdir, n, two=False):
     num = 0
 # Calibrate at the centroid of each grid
     while not finished:
-        for i in range(0,n):
-            for j in range(0,n):
+        for i in range(0,g):
+            for j in range(0,g):
                 #Move the point
                 ball = Circle(Point(grid_w/2+ grid_w*j,grid_h/2+ grid_h*i), radius)
                 ball.setFill(color)
@@ -124,8 +125,8 @@ def calibrate(outdir, n, two=False):
         sub.setSize(20)
         
 
-
-        if win.getKey() == 'r':
+        key = win.getKey()
+        if key == 'r':
             finished = False
             head.undraw()
             sub.undraw()
@@ -133,7 +134,7 @@ def calibrate(outdir, n, two=False):
             centroids = []
             calibration = []
         
-        elif win.getKey() == 's':
+        elif key == 's':
             finished = False
             head.undraw()
             sub.undraw()
@@ -142,15 +143,30 @@ def calibrate(outdir, n, two=False):
                 writer = csv.writer(csvfile, delimiter=',')
                 for (x,y) in centroids:
                     writer.writerow([x,y])
+            
+            if num==0:
+                head.undraw()
+                sub.undraw()
+                validate(centroids, win)
+            
             num+=1
             centroids = []
             calibration = []
         
         else:
-            if two == True:
+            if num != "2x2":
+                with open(outdir + "centroids_" + str(num) + ".csv", 'w', newline='') as csvfile:
+                    writer = csv.writer(csvfile, delimiter=',')
+                    for (x,y) in centroids:
+                        writer.writerow([x,y])
+                centroids = []
+                calibration = []
+                head.undraw()
+                sub.undraw()
                 finished = False
-                n = 2
-                two == False
+                g = 2
+                grid_w = screen_width/g
+                grid_h = screen_height/g
                 num = "2x2"
             else:
                 finished = True
@@ -165,7 +181,7 @@ def calibrate(outdir, n, two=False):
     return centroids  
 
 
-def validate(centroids, n):
+def validate(centroids, window, n=3):
     """
     Estimates accuracy of classifer post-calibration
     
@@ -190,42 +206,84 @@ def validate(centroids, n):
     capture_time = 1/sampling_rate # Amount of time for Core to collect
 
     # Set up graphics window
-    win = GraphWin("Validation", screen_width, screen_height)
-    win.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height, 0, 0)) # change window position
+    # window = GraphWin("Validation", screen_width, screen_height)
+    # window.master.geometry('%dx%d+%d+%d' %(screen_width, screen_height, 0, 0)) # change window position
     
     # #Connect to Pupil Core
     p = PupilCore()
 
+        
+    finished=False
+    while not finished:
     # Set up circle (TOP LEFT)
-    ball = Circle(Point(grid_w/2, grid_h/2), radius)
-    ball_x_coord = grid_w/2 # will be incremented to keep track of ball center
-    ball_y_coord = grid_h/2
-    ball.setFill(color)
-    ball.setOutline(color)
-    ball.draw(win)
-    
-    head = Text(Point(screen_width/2,screen_height/3), "Validation Part 1").draw(win)
-    head.setSize(30)
-    head.setStyle('bold')
-    sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot as it traces the letter 'G' " + '\n' + "Press any key to begin").draw(win)
-    sub.setSize(20)
+        ball = Circle(Point(grid_w/2, grid_h/2), radius)
+        ball_x_coord = grid_w/2 # will be incremented to keep track of ball center
+        ball_y_coord = grid_h/2
+        ball.setFill(color)
+        ball.setOutline(color)
+        ball.draw(window)
+        
+        head = Text(Point(screen_width/2,screen_height/3), "Validation").draw(window)
+        head.setSize(30)
+        head.setStyle('bold')
+        sub = Text(Point(screen_width/2,screen_height/3+75), "Follow the dot as it traces the letter 'S' " + '\n' + "Press any key to begin").draw(window)
+        sub.setSize(20)
 
-    win.getKey()
-    head.undraw()
-    sub.undraw()
+        window.getKey()
+        head.undraw()
+        sub.undraw()
 
-    left_to_right = True
-    dx = 3
-    dy = 3
+        left_to_right = True
+        dx = 3
+        dy = 3
 
-    labeled_ball_positions = []
-    validation = []
-    averaged_validation = []
-    classified_grid_number = []
-    
-    for i in range(n-1): 
+        labeled_ball_positions = []
+        validation = []
+        averaged_validation = []
+        classified_grid_number = []
 
-        #side to side
+        for i in range(n-1): 
+
+            #side to side
+            for j in range(abs(round((screen_width-(grid_w))/dx))):
+                # Start recording for 'capture_time' seconds
+                pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+                data = pgr_future.result()
+                validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+
+                ball.move(dx, 0)
+
+                ball_x_coord += dx
+                labeled_ball_positions.append(math.floor(ball_x_coord/grid_w) + (n*i))
+        
+            #down one row
+            for j in range(abs(round(grid_h/dy))): 
+            
+                # Start recording for 'capture_time' seconds
+                pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
+                data = pgr_future.result()
+                validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+            
+                ball.move(0, dy)
+
+                ball_y_coord += dy
+                labeled_ball_positions.append((n*(math.floor(ball_y_coord/(grid_h*(i+1))))) + (((math.floor(ball_x_coord/grid_w)) + (n*i))))
+
+
+            
+            if (left_to_right):
+                left_to_right = False
+                dx = -3
+            else:
+                left_to_right = True
+                dx = 3 
+
+        if (n % 2) == 0:
+            dx = -3
+        else:
+            dx = 3
+
+        #side to side one more time
         for j in range(abs(round((screen_width-(grid_w))/dx))):
             # Start recording for 'capture_time' seconds
             pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
@@ -235,81 +293,46 @@ def validate(centroids, n):
             ball.move(dx, 0)
 
             ball_x_coord += dx
-            labeled_ball_positions.append(math.floor(ball_x_coord/grid_w) + (n*i))
-    
-        #down one row
-        for j in range(abs(round(grid_h/dy))): 
+            labeled_ball_positions.append(math.floor(ball_x_coord/grid_w) + (n*(n-1)))        
         
-            # Start recording for 'capture_time' seconds
-            pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
-            data = pgr_future.result()
-            validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
+        ball.undraw()
+
+        # Average samples if Core took more than one sample at a single ball position
+        for sample in validation: 
+            sample[0] = np.mean(sample[0]) # Average x
+            sample[1] = np.mean(sample[1]) # Average y
+            sample[2] = np.mean(sample[2]) # Average conf
+            averaged_validation.append(sample)
         
-            ball.move(0, dy)
+        # Compare ball_positions and validation arrays
+        classified_validation = classify(centroids, averaged_validation, conf_thresh)        
 
-            ball_y_coord += dy
-            labeled_ball_positions.append((n*(math.floor(ball_y_coord/(grid_h*(i+1))))) + (((math.floor(ball_x_coord/grid_w)) + (n*i))))
+        # Extract grid number from classified data
+        for sample in classified_validation: 
+            classified_grid_number.append(sample[0])
 
+        # Plot correctly and incorrectly classified samples
+        for predicted, actual, sample in zip(classified_grid_number, labeled_ball_positions, averaged_validation):
+            print(f"Predicted: {predicted}, Actual: {actual}, Sample Coords: {sample[0]}, {sample[1]}")
+            if predicted == actual:
+                plt.plot(sample[0], sample[1], '.', color = 'green')
+            else: 
+                plt.plot(sample[0], sample[1], '.', color = 'red')
 
+        # Plot centroids
+        for sample in centroids:
+            plt.plot(sample[0], sample[1], '*', color=class_to_color(centroids.index(sample)))
+
+        plt.show()
+
+        percent_correct = round((sum(1 for a,b in zip(labeled_ball_positions, classified_grid_number) if a ==b)/len(labeled_ball_positions)) * 100)
+        print("Pupil Core is " + str(percent_correct) + "% accurate currently")
         
-        if (left_to_right):
-            left_to_right = False
-            dx = -3
-        else:
-            left_to_right = True
-            dx = 3 
-
-    if (n % 2) == 0:
-        dx = -3
-    else:
-        dx = 3
-
-    #side to side one more time
-    for j in range(abs(round((screen_width-(grid_w))/dx))):
-        # Start recording for 'capture_time' seconds
-        pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=capture_time)
-        data = pgr_future.result()
-        validation.append([[d[b'norm_pos'][0] for d in data], [d[b'norm_pos'][1] for d in data], [d[b'confidence'] for d in data]])
-
-        ball.move(dx, 0)
-
-        ball_x_coord += dx
-        labeled_ball_positions.append(math.floor(ball_x_coord/grid_w) + (n*(n-1)))        
+        if window.getKey() != 'r':
+            finished = True
+        
+        
     
-    ball.undraw()
-
-    # Average samples if Core took more than one sample at a single ball position
-    for sample in validation: 
-        sample[0] = np.mean(sample[0]) # Average x
-        sample[1] = np.mean(sample[1]) # Average y
-        sample[2] = np.mean(sample[2]) # Average conf
-        averaged_validation.append(sample)
-    
-    # Compare ball_positions and validation arrays
-    classified_validation = classify(centroids, averaged_validation, conf_thresh)        
-
-    # Extract grid number from classified data
-    for sample in classified_validation: 
-        classified_grid_number.append(sample[0])
-
-    # Plot correctly and incorrectly classified samples
-    for predicted, actual, sample in zip(classified_grid_number, labeled_ball_positions, averaged_validation):
-        print(f"Predicted: {predicted}, Actual: {actual}, Sample Coords: {sample[0]}, {sample[1]}")
-        if predicted == actual:
-            plt.plot(sample[0], sample[1], '.', color = 'green')
-        else: 
-            plt.plot(sample[0], sample[1], '.', color = 'red')
-
-    # Plot centroids
-    for sample in centroids:
-        plt.plot(sample[0], sample[1], '*', color=class_to_color(centroids.index(sample)))
-
-    plt.show()
-
-    percent_correct = round((sum(1 for a,b in zip(labeled_ball_positions, classified_grid_number) if a ==b)/len(labeled_ball_positions)) * 100)
-
-    win.close()
-    print("Pupil Core is " + str(percent_correct) + "% accurate currently")
 
 def classify(centroids, data, conf_thresh):
     """ Classifies pupil x,y position in data matrix into grid number
@@ -382,7 +405,7 @@ def record_data(outdir, port, centroids):
     #Collect Data
 
     while not finished:
-        start_time = time.time()
+        #start_time = time.time()
         key = win.checkKey()
         #Manage the state
         if not recording and key == 'r':
@@ -417,13 +440,14 @@ def record_data(outdir, port, centroids):
             except ValueError:
                 print("Failed case!")
             """
-            try:
-                with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
-                    writer = csv.writer(csvfile, delimiter=',')
-                    for line in np.array(data).astype(np.float).T:
+            with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile, delimiter=',')
+                for line in np.array(data).astype(np.float).T:
+                    try:
+                        l = line.astype(np.float)
                         writer.writerow(line)
-            except ValueError:
-                print("Failed case!")
+                    except ValueError:
+                        print("Failed case!")
             raw = []
             run_num = run_num+1
         #Cancel run
@@ -447,7 +471,7 @@ def record_data(outdir, port, centroids):
                 pgr_future = p.pupil_grabber(topic='pupil.1.3d', seconds=1/240) #Read from Pupil Core
              
                 raw.append((pgr_future.result(),accel)) #Stitch raw data together
-            print("-------- %s -------" % (time.time() - start_time))
+            #print("-------- %s -------" % (time.time() - start_time))
 
     win.close()
     ard.close()
