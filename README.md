@@ -19,15 +19,25 @@ Serves two functions:
 
 ## analysis.py
 
-## Other contained software and data:
-
-### experiment
+## experiment
 Directory containing all the raw recorded data for each of our subjects, designated by behavior. 
 
-### figure_gen.py
+## figure_gen.py
 
 Contains code for generating the supplemental figures used in the Final Report.
 
-#### trace_line
-Run via the `-l` argument from `remote_run.
-[traceline2](https://user-images.githubusercontent.com/30049464/153648038-29b0546f-25a9-4e4f-9a48-a729e0f77643.png)
+### trace_line
+Run via the `-l` argument from `remote_run.` Graphs eye position data colored by classification value with colored centroids for reference 
+![traceline2](https://user-images.githubusercontent.com/30049464/153648038-29b0546f-25a9-4e4f-9a48-a729e0f77643.png)
+
+### validate
+Run as default during the calibration process to benchmark the accuracy of the calibrated centroids
+![validation_with_centroids](https://user-images.githubusercontent.com/30049464/153649514-4be26d07-f0f9-4c25-a032-ae4292796416.png)
+
+### plot_accel
+Generates a figure of gyroscope and accelerometer readout. xlim and ylim values may need to be manually adjusted
+![nod](https://user-images.githubusercontent.com/30049464/153649782-432fd902-2a2f-4d7d-b438-914338c7b547.png)
+
+
+### grid
+Generates a reference grid labeled with classification values
