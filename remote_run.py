@@ -442,7 +442,7 @@ def record_data(outdir, port, centroids):
             """
             with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile, delimiter=',')
-                for line in np.array(data).astype(np.float).T:
+                for line in np.array(data).T:
                     try:
                         l = line.astype(np.float)
                         writer.writerow(line)
