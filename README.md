@@ -12,7 +12,7 @@ Calibrate Pupil Core and collect synchronized data from Pupil Core and Arduino I
     -v [optional: run validation protocol, defaults to False] -p [optional: specifies Arduino port, defaults to COM4] 
     -n [optional: NxN grid number, defaults to 3 (3x3 grid)]`
 <br><br>
-Detailed experimental protocol for how our data was collected is contained in the Appendix of our final report
+Detailed experimental protocol for how data was collected is contained in the Appendix of the Final Rport
 
 ## process_raw.py
 Serves two functions: 
@@ -24,4 +24,10 @@ Serves two functions:
 ### experiment
 Directory containing all the raw recorded data for each of our subjects, designated by behavior. 
 
-### the file where we're gonna dump the figure code that was in remote_run.py
+### figure_gen.py
+
+Contains code for generating the supplemental figures used in the Final Report.
+
+#### trace_line
+Run via the `-l` argument from `remote_run.
+[traceline2](https://user-images.githubusercontent.com/30049464/153648038-29b0546f-25a9-4e4f-9a48-a729e0f77643.png)
