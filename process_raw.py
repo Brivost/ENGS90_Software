@@ -1,6 +1,7 @@
 
 import csv
 import math
+import matplotlib.pyplot as plt
 import numpy as np
 import os
 
@@ -62,6 +63,47 @@ def process(rawdir, outdir, cent, max_feat=False):
 
 
 
+def plot_data(data, centroids=None, lines=False):
+    """
+    Plot all data provided onto multiple subplots, optionally plot the calibrated centroids and grid divisions
+
+    data: List of lists, each sublist will be plotted on its own subfigure
+    centroids: List of lists, calibrated centroid positions. If provided, will plot mean centroid positions along with grid delineations
+
+    """
+
+    n_columns = math.ceil(len(data)/2)
+    plt.figure(1)
+    n = 1
+    
+    figure, axes = plt.subplots(nrows=2, ncols=2)
+    for run in data:
+        d = np.array(run).T
+        ax = plt.subplot(2,n_columns,n)
+
+        if n==1: ax.title.set_text('Conversation')
+        elif n==2: ax.title.set_text('Reading')
+        elif n==3: ax.title.set_text('Simulated Seizure')
+        elif n==4: ax.title.set_text('Watching TV')
+
+        for (c, x, y) in zip(d[0], d[1], d[2]):
+            plt.plot(x, y, '.', color=class_to_color(c)) 
+        if centroids != None:
+            for (x,y) in centroids:
+                plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))
+            
+            if lines:
+                #vertical lines
+                plt.plot([(centroids[0][0] + centroids[1][0])/2,(centroids[6][0] + centroids[7][0])/2], [(centroids[0][1] + centroids[1][1])/2,(centroids[6][1] + centroids[7][1])/2],'--', color='black')
+                plt.plot([(centroids[1][0] + centroids[2][0])/2,(centroids[7][0] + centroids[8][0])/2], [(centroids[1][1] + centroids[2][1])/2,(centroids[7][1] + centroids[8][1])/2],'--', color='black')
+
+                #horizontal lines
+                plt.plot([(centroids[0][0] + centroids[3][0])/2,(centroids[2][0] + centroids[5][0])/2], [(centroids[0][1] + centroids[3][1])/2,(centroids[2][1] + centroids[5][1])/2],'--', color='black')
+                plt.plot([(centroids[3][0] + centroids[6][0])/2,(centroids[5][0] + centroids[8][0])/2], [(centroids[3][1] + centroids[6][1])/2,(centroids[5][1] + centroids[8][1])/2],'--', color='black')
+        n=n+1
+
+    figure.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
 
