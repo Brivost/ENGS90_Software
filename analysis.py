@@ -17,8 +17,6 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
 
-#from remote_run import classify
-
 def class_to_color(c):
     if   c==0: return 'red'
     elif c==1: return 'pink'
@@ -31,7 +29,24 @@ def class_to_color(c):
     elif c==8: return 'black'
 
 
+def load_all(experdir, merge=True):
+    """
+    Loads all the data from the experiment. Specific to the way the output files are saved
 
+    experdir: String, path to experiment directory
+
+    Returns [ [[conversation_0],...,[conversation_n]], [[eating_0],...,[eating_n]], [[technology_0],..,[technology_n]], [[seizure_0],..,[seizure_n]] ]
+    """
+    data = [ [], [], [], []] 
+    for dirName, subdirList, fileList in os.walk(experdir):
+        read = load(datadir)
+        for i in range(len(read)):
+            if i < 4:
+                data[i].extend(read[i])
+            else:
+                data[4].extend(read)
+    return data
+        
 
 def load(datadir):
     """ 
@@ -40,7 +55,7 @@ def load(datadir):
     datadir: string, path to csv data
 
 
-    Returns: (List of lists, list of lists), sublists are data from each .csv file in the specified directory, second list is centroids
+    Returns: List of lists, sublists are data from each .csv file in the specified directory
     """
     data = []
     conf_thresh = .75
@@ -62,11 +77,15 @@ def load(datadir):
     return data
 
 def load_centroids(cent):
+    """
+    Load in centroids 
+    """
     centroids = []
     with open(cent, newline='') as csvfile:
         for row in reader:
             centroids.append([float(x) for x in row[0].split(',')])
     return centroids
+
 
 def plot_data(data, centroids=None, lines=False):
     """
@@ -274,17 +293,17 @@ def feature_extraction(data, labs, outdir):
 
             #Head Tracking
             
-            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))
-            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))  
+            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))
+            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))  
             
-            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))         #Standard Deviation of acceleration
-            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))         #Standard Deviation magnitude of gyroscope
+            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))         #Standard Deviation of acceleration
+            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))         #Standard Deviation magnitude of gyroscope
             
-            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Maximum magnitude of acceleration
-            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Maximum magnitude of gyroscope
+            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))                      #Maximum magnitude of acceleration
+            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Maximum magnitude of gyroscope
 
-            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minmum magnitude of acceleration
-            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Minimum magnitude of gyroscope
+            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))                      #Minmum magnitude of acceleration
+            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minimum magnitude of gyroscope
             
 
             #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
@@ -293,7 +312,7 @@ def feature_extraction(data, labs, outdir):
             feats.append(f)
 
  
-    with open(outdir + "sub/features.csv", 'w', newline='') as csvfile:
+    with open(outdir + "features.csv", 'w', newline='') as csvfile:
 
         writer = csv.writer(csvfile, delimiter=',')
         for i in range(len(feats)):
@@ -306,19 +325,21 @@ def feature_extraction(data, labs, outdir):
 
 if __name__ == "__main__":
 
-    data = load('test_scripts/')
+    data = load_all('experiment/')
 
-    """
-    (feat, lab) = feature_extraction(data, [0,0,0,1], 'bigtest/')
+    #Seizure vs Conversation
+    (feat, lab) = feature_extraction([data[0], data[3]], [0,1], 'experiment/features/')
     separate(feat, lab)
 
-
-    (feat, lab) = feature_extraction(data, [0,0,1,0], 'bigtest/')
+    #Seizure vs Eating
+    (feat, lab) = feature_extraction([data[1], data[3]], [0,1], 'experiment/features/')
     separate(feat, lab)
 
-    (feat, lab) = feature_extraction(data, [0,1,0,0], 'bigtest/')
+    #Seizure vs Technology
+    (feat, lab) = feature_extraction([data[2], data[3]], [0,1], 'experiment/features/')
     separate(feat, lab)
 
-    (feat, lab) = feature_extraction(data, [1,0,0,0], 'bigtest/')
+    #Seizure vs Non-Seizure
+    (feat, lab) = feature_extraction(data, [0,0,0,1], 'experiment/features/')
     separate(feat, lab)
-    """
+    
