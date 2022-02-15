@@ -26,11 +26,18 @@ def classify(centroids, data, conf_thresh):
         
     return labeled
 
-def process(rawdir, outdir, cent, max_feat=False):
+def process_all(experdir, centroid="centroids_0.csv", max_feat=False):
+    for dirName, subdirList, fileList in os.walk(experdir):
+        if "subj" in dirName:
+            process(dirName + "/", centroid, dirName + "/", max_feat)
+
+
+def process(rawdir, cent, outdir, max_feat=False):
 
     data = []
     centroids = []
     conf_thresh = .75
+
 
     with open(rawdir + cent, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
@@ -57,7 +64,7 @@ def process(rawdir, outdir, cent, max_feat=False):
                 for sample in read:
                     if not max_feat: writer.writerow([sample[i] for i in [0, 4,5,6,7,8,9]])
                     else: writer.writerow(sample)
-                #writer.writerow(read)
+                
 
     return (data, centroids)
 
@@ -107,4 +114,4 @@ def plot_data(data, centroids=None, lines=False):
 
 if __name__ == "__main__":
 
-    process("test_scripts/", "test_scripts/", "centroids_0.csv")
+    process_all("experiment/")

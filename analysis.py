@@ -39,12 +39,15 @@ def load_all(experdir, merge=True):
     """
     data = [ [], [], [], []] 
     for dirName, subdirList, fileList in os.walk(experdir):
-        read = load(datadir)
-        for i in range(len(read)):
-            if i < 4:
-                data[i].extend(read[i])
-            else:
-                data[4].extend(read)
+        if "subj" in dirName:
+            print(dirName)
+            read = load(dirName)
+
+            for i in range(len(read)):
+                if i > 0:
+                    data[i-1].extend(read[i])
+                else:
+                    data[i].extend(read[i])
     return data
         
 
@@ -62,14 +65,15 @@ def load(datadir):
 
     for file in os.listdir(datadir):
         filename = os.fsdecode(file)
-        print(filename)
+        
         if filename.endswith(".csv") and "data" in filename:   #Error handling to dodge hidden files and subdirectories
+            print(filename)
             read = []
             with open(datadir + '/' + filename, newline='') as csvfile:
                 reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
                 for row in reader:
                     read.append([float(x) for x in row[0].split(',')])
-            print(read)
+            
             data.append(read)
             
     
@@ -205,22 +209,27 @@ def separate(features, labels):
     roc_auc = metrics.auc(fpr, tpr)
     print(roc_auc)
     
+    probs = clf.predict_proba(test_feat)
+    # keep probabilities for the positive outcome only
+    probs = probs[:, 1]
+    auc = metrics.roc_auc_score(test_labels, probs)
+    print('AUC: %.3f' % auc)
 
    # plt.subplot(121)
 
     metrics.plot_roc_curve(clf, test_feat, test_labels)
     
 
-    plt.figure()
+    #plt.figure()
     importance = 10*clf.coef_[0]
     print(importance)
     # for i,v in enumerate(importance):
     #     print('Feature: %0d, Score: %.5f' % (i,v))
-    full = ['Average Eye', '#Unique', '#Changes', '#Low-Conf', 'Avg Accel Mag', 'Avg Gyro Mag', 'Std Accel Mag', 'Std Gyro Mag', 'Accel Max', 'Gyro Max', 'Accel Min', 'Gyro Min']
+    full = ['Average Eye', '#Unique', '#Changes', '#Low-Conf', '%TB', '%LR' 'Avg Accel Mag', 'Avg Gyro Mag', 'Std Accel Mag', 'Std Gyro Mag', 'Accel Max', 'Gyro Max', 'Accel Min', 'Gyro Min']
     justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
-    plt.bar(full, importance)
-    plt.xticks(rotation=90, fontsize=8)
-    plt.show()
+    #plt.bar(full, importance)
+    #plt.xticks(rotation=90, fontsize=8)
+    #plt.show()
 
     plot_histo(features, labels, importance)
 
@@ -275,45 +284,53 @@ def feature_extraction(data, labs, outdir):
     epoch_size = 130
     feats = []
     labels = []
+    epoch_thresh = .85
+
     for (run, l) in zip(data, labs):
         n = math.floor(len(run)/(epoch_size/2))
-        l = (n-1)*[l]
-        labels += l
+
+        num_sample = 0
         for i in range(1,n):
             f = []
 
             splice = np.array(run[(int)((i-1)*(epoch_size/2)):(int)((i*epoch_size/2)+epoch_size/2)])
             classified = splice[:,0]
+            if (classified[classified==9].shape[0] / len(classified)) <= epoch_thresh:
+                #Eye Tracking
+                f.append(statistics.mean(classified))                                                                                   #Average class
+                f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
+                f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
+                f.append((classified==9).sum())                                                                                         #Number of poor confidence values
+                f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
+                f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
 
-            #Eye Tracking
-            f.append(statistics.mean(classified))                                                                                   #Average class
-            f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
-            f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
-            f.append((classified==9).sum())                                                                                         #Number of poor confidence values
 
-            #Head Tracking
-            
-            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))
-            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))  
-            
-            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))         #Standard Deviation of acceleration
-            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))         #Standard Deviation magnitude of gyroscope
-            
-            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))                      #Maximum magnitude of acceleration
-            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Maximum magnitude of gyroscope
+                #Head Tracking
+                
+                f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))
+                f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))  
+                
+                f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))         #Standard Deviation of acceleration
+                f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))         #Standard Deviation magnitude of gyroscope
+                
+                f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))                      #Maximum magnitude of acceleration
+                f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Maximum magnitude of gyroscope
 
-            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))                      #Minmum magnitude of acceleration
-            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minimum magnitude of gyroscope
-            
+                f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))                      #Minmum magnitude of acceleration
+                f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minimum magnitude of gyroscope
+                
 
-            #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
-            #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
-            
-            feats.append(f)
-
- 
+                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
+                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
+                
+                feats.append(f)
+                num_sample+=1
+        
+        l = (num_sample)*[l]
+        labels += l
+    print(len(feats))
     with open(outdir + "features.csv", 'w', newline='') as csvfile:
-
+        
         writer = csv.writer(csvfile, delimiter=',')
         for i in range(len(feats)):
             writer.writerow(feats[i] + [labels[i]])
@@ -327,19 +344,19 @@ if __name__ == "__main__":
 
     data = load_all('experiment/')
 
-    #Seizure vs Conversation
-    (feat, lab) = feature_extraction([data[0], data[3]], [0,1], 'experiment/features/')
+    #Seizure vs Technology
+    (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
     separate(feat, lab)
 
     #Seizure vs Eating
-    (feat, lab) = feature_extraction([data[1], data[3]], [0,1], 'experiment/features/')
+    (feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
     separate(feat, lab)
 
-    #Seizure vs Technology
-    (feat, lab) = feature_extraction([data[2], data[3]], [0,1], 'experiment/features/')
+    #Seizure vs Coversation
+    (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
     separate(feat, lab)
 
     #Seizure vs Non-Seizure
-    (feat, lab) = feature_extraction(data, [0,0,0,1], 'experiment/features/')
+    (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/')
     separate(feat, lab)
     
