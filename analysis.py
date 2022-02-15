@@ -16,6 +16,7 @@ from scipy.stats import norm
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
+from remote_run import classify
 
 def class_to_color(c):
     if   c==0: return 'red'
@@ -287,24 +288,101 @@ def feature_extraction(data, labs, outdir):
     return (feats, labels)
 
 
+def noise(data, centroids=None):
+    
+    conf_thresh = .7   #confidence threshold
+    noise_scale = 0.1 #scaling amount of standard deviation to add in noise (e.g. 0.1 -> 10%)
+    n = 1
+
+    for run in data:
+
+        noisy_data = []
+        original_data = []
+        labelled_original = []
+        labelled_noisy = []
+        classified_noisy = []
+
+        plt.figure(n)
+
+        x_data = np.array([])
+        y_data = np.array([])
+
+        #Pull out x and y coords
+        #Create original data 
+        for sample in run:
+            # Ignore NaN values
+            if ((not math.isnan(sample[1])) and (not math.isnan(sample[2]))):
+                x_data = np.append(x_data, [sample[1]])
+                y_data = np.append(y_data, [sample[2]])
+                original_data.append([sample[0], sample[1], sample[2]])
+
+        #Plot original data
+        plt.plot(x_data, y_data, ".", color = "blue")
+
+        #Find x and y standard deviations
+        x_stdev = statistics.stdev(x_data)
+        y_stdev = statistics.stdev(y_data)
+
+        #Add noise to original data
+        for sample in run:
+            x_noise = np.random.normal(0, noise_scale*x_stdev)
+            y_noise = np.random.normal(0, noise_scale*y_stdev)
+            sample[1] = sample[1] + x_noise
+            sample[2] = sample[2] + y_noise
+            # Ignore NaN values
+            if ((not math.isnan(sample[1])) and (not math.isnan(sample[2]))):
+                noisy_data.append([sample[1], sample[2], 1])
+                plt.plot(sample[1], sample[2], ".", color = "red", alpha = 0.3)
+
+        #Plot centroids
+        if centroids != None:
+            for (x,y) in centroids:
+                plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))
+
+        #Classify noisy data to compare to original
+        classified_noisy = classify(centroids, noisy_data, conf_thresh)
+
+        # Extract grid number from classified data
+        for sample in classified_noisy: 
+            labelled_noisy.append(sample[0])
+        #Extract grid number from original
+        for sample in original_data: 
+            labelled_original.append(sample[0])
+    
+        #Calculate percent correct between labelled original and noisy
+        percent_correct = round((sum(1 for a,b in zip(labelled_noisy, labelled_original) if a ==b)/len(labelled_original)) * 100)
+
+        #Calculate average noise variance
+        average_noise_variance = ((abs(x_noise)+abs(y_noise))/2)**2
+        print(x_noise)
+        print(y_noise)
+
+        print(f"Run {n}: {percent_correct}% similar with noise variance {average_noise_variance}")
+
+        n += 1
+
+    plt.show()
 
 
 if __name__ == "__main__":
 
-    (data, centroids) = load('bigtest/')
+    # (data, centroids) = load('bigtest/')
 
-    (feat, lab) = feature_extraction(data, [0,0,0,1], 'bigtest/')
-    separate(feat, lab)
+    # (feat, lab) = feature_extraction(data, [0,0,0,1], 'bigtest/')
+    # separate(feat, lab)
 
 
-    (feat, lab) = feature_extraction(data, [0,0,1,0], 'bigtest/')
-    separate(feat, lab)
+    # (feat, lab) = feature_extraction(data, [0,0,1,0], 'bigtest/')
+    # separate(feat, lab)
 
-    (feat, lab) = feature_extraction(data, [0,1,0,0], 'bigtest/')
-    separate(feat, lab)
+    # (feat, lab) = feature_extraction(data, [0,1,0,0], 'bigtest/')
+    # separate(feat, lab)
 
-    (feat, lab) = feature_extraction(data, [1,0,0,0], 'bigtest/')
-    separate(feat, lab)
+    # (feat, lab) = feature_extraction(data, [1,0,0,0], 'bigtest/')
+    # separate(feat, lab)
 
     #plot_data(data, centroids)
     #plot_accel(data)
+
+    (data, centroids) = load('plot_test/')
+    noise(data, centroids)
