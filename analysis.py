@@ -14,8 +14,10 @@ import matplotlib.pyplot as plt
 from scipy.fft import fft, fftfreq
 from scipy.stats import norm
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
+from sklearn.metrics import f1_score
 
 def class_to_color(c):
     if   c==0: return 'red'
@@ -201,9 +203,13 @@ def separate(features, labels):
     """
     train_feat, test_feat, train_labels, test_labels = train_test_split(features, labels, test_size = 0.3, random_state = 42)
     clf = LinearDiscriminantAnalysis()
+    #clf = KNeighborsClassifier(n_neighbors=5)
+    
     #clf.fit(train_feat, train_labels)
+    
     clf.fit_transform(train_feat, train_labels)
     clf.transform(test_feat)
+    
     preds = clf.predict(test_feat)
 
     
@@ -211,26 +217,28 @@ def separate(features, labels):
     # keep probabilities for the positive outcome only
     probs = probs[:, 1]
     auc = metrics.roc_auc_score(test_labels, probs)
+    f1 = f1_score(test_labels, preds, average='macro')
     print('AUC: %.3f' % auc)
+    print('F1: %.3f', % f1)
 
-   # plt.subplot(121)
 
     #metrics.plot_roc_curve(clf, test_feat, test_labels)
     
 
     #plt.figure()
-    importance = 10*clf.coef_[0]
-    print(importance)
+    #importance = 10*clf.coef_[0]
+    #print(importance)
     # for i,v in enumerate(importance):
     #     print('Feature: %0d, Score: %.5f' % (i,v))
-    full = ['Average Eye', '#Unique', '#Changes', '#Low-Conf', '%TB', '%LR' 'Avg Accel Mag', 'Avg Gyro Mag', 'Std Accel Mag', 'Std Gyro Mag', 'Accel Max', 'Gyro Max', 'Accel Min', 'Gyro Min']
-    justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
+    #full = ['Average Eye', '#Unique', '#Changes', '#Low-Conf', '%TB', '%LR' 'Avg Accel Mag', 'Avg Gyro Mag', 'Std Accel Mag', 'Std Gyro Mag', 'Accel Max', 'Gyro Max', 'Accel Min', 'Gyro Min']
+    #justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
     #plt.bar(full, importance)
     #plt.xticks(rotation=90, fontsize=8)
     #plt.show()
 
     #plot_histo(features, labels, importance)
-    return auc
+    auc = 0
+    return (auc,f1)
 
 
 def plot_histo(features, labels, coef):
@@ -272,7 +280,7 @@ def plot_histo(features, labels, coef):
 
     plt.show()
 
-def feature_extraction(data, labs, outdir, et=.25):
+def feature_extraction(data, labs, outdir, et=.45):
     """
     Extract features from raw data
 
@@ -281,7 +289,7 @@ def feature_extraction(data, labs, outdir, et=.25):
 
     Returns: List of lists, of relevant features 
     """
-    epoch_size = 130
+    epoch_size = 260
     feats = []
     labels = []
     epoch_thresh = et
@@ -341,27 +349,24 @@ def feature_extraction(data, labs, outdir, et=.25):
 
 if __name__ == "__main__":
 
-    data = load("experiment/subj1/")
-    cent = load_centroids("experiment/subj1/centroids_0.csv")
-    plot_data(data, cent)
 
-
-    #data = load_all('experiment/')
+    data = load_all('experiment/')
 
     #Seizure vs Technology
-    #(feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
-    #separate(feat, lab)
+    (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
+    separate(feat, lab)
 
     #Seizure vs Eating
-    #(feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
-    #separate(feat, lab)
+    (feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
+    separate(feat, lab)
 
     #Seizure vs Coversation
-    #(feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
-    #separate(feat, lab)
+    (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
+    separate(feat, lab)
 
     #Seizure vs Non-Seizure
-    
+    (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/')
+    separate(feat, lab)
     
     
     #Vary Threshold
@@ -369,22 +374,24 @@ if __name__ == "__main__":
     """
     best = [0,0]
     aucs = []
+    f1s = []
     lenfeats = []
     biggest = 0
     for i in range(1,101):
         print(i)
         (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/', i/100.0)
-        auc = separate(feat, lab)
+        (auc,f1) = separate(feat, lab)
         if auc > best[0]:
             best = [auc, i]
         aucs.append(auc)
+        f1s.append(f1)
         lenfeats.append(len(feat))
         if i == 100: biggest = len(feat)
     
 
     plt.figure()
     plt.plot(range(1,101), aucs, label="AUC Scores")
-
+    plt.plot(range(1,101), f1s, label="F1 Scores")
     plt.plot(range(1,101), [x / float(biggest) for x in lenfeats], label="Percentage of Samples")
     plt.legend(loc="lower right")
     print("Best threshold is " + str(best[0]) + " at " + str(best[1]))
