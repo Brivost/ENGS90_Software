@@ -86,6 +86,7 @@ def load_centroids(cent):
     """
     centroids = []
     with open(cent, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
         for row in reader:
             centroids.append([float(x) for x in row[0].split(',')])
     return centroids
@@ -205,9 +206,6 @@ def separate(features, labels):
     clf.transform(test_feat)
     preds = clf.predict(test_feat)
 
-    fpr, tpr, threshold = metrics.roc_curve(test_labels, preds)
-    roc_auc = metrics.auc(fpr, tpr)
-    print(roc_auc)
     
     probs = clf.predict_proba(test_feat)
     # keep probabilities for the positive outcome only
@@ -217,7 +215,7 @@ def separate(features, labels):
 
    # plt.subplot(121)
 
-    metrics.plot_roc_curve(clf, test_feat, test_labels)
+    #metrics.plot_roc_curve(clf, test_feat, test_labels)
     
 
     #plt.figure()
@@ -231,7 +229,9 @@ def separate(features, labels):
     #plt.xticks(rotation=90, fontsize=8)
     #plt.show()
 
-    plot_histo(features, labels, importance)
+    #plot_histo(features, labels, importance)
+    return auc
+
 
 def plot_histo(features, labels, coef):
     mapped = []
@@ -272,7 +272,7 @@ def plot_histo(features, labels, coef):
 
     plt.show()
 
-def feature_extraction(data, labs, outdir):
+def feature_extraction(data, labs, outdir, et=.25):
     """
     Extract features from raw data
 
@@ -284,7 +284,7 @@ def feature_extraction(data, labs, outdir):
     epoch_size = 130
     feats = []
     labels = []
-    epoch_thresh = .85
+    epoch_thresh = et
 
     for (run, l) in zip(data, labs):
         n = math.floor(len(run)/(epoch_size/2))
@@ -339,24 +339,54 @@ def feature_extraction(data, labs, outdir):
 
 
 
-
 if __name__ == "__main__":
 
-    data = load_all('experiment/')
+    data = load("experiment/subj1/")
+    cent = load_centroids("experiment/subj1/centroids_0.csv")
+    plot_data(data, cent)
+
+
+    #data = load_all('experiment/')
 
     #Seizure vs Technology
-    (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
-    separate(feat, lab)
+    #(feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
+    #separate(feat, lab)
 
     #Seizure vs Eating
-    (feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
-    separate(feat, lab)
+    #(feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
+    #separate(feat, lab)
 
     #Seizure vs Coversation
-    (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
-    separate(feat, lab)
+    #(feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
+    #separate(feat, lab)
 
     #Seizure vs Non-Seizure
-    (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/')
-    separate(feat, lab)
     
+    
+    
+    #Vary Threshold
+
+    """
+    best = [0,0]
+    aucs = []
+    lenfeats = []
+    biggest = 0
+    for i in range(1,101):
+        print(i)
+        (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/', i/100.0)
+        auc = separate(feat, lab)
+        if auc > best[0]:
+            best = [auc, i]
+        aucs.append(auc)
+        lenfeats.append(len(feat))
+        if i == 100: biggest = len(feat)
+    
+
+    plt.figure()
+    plt.plot(range(1,101), aucs, label="AUC Scores")
+
+    plt.plot(range(1,101), [x / float(biggest) for x in lenfeats], label="Percentage of Samples")
+    plt.legend(loc="lower right")
+    print("Best threshold is " + str(best[0]) + " at " + str(best[1]))
+    plt.show()
+    """

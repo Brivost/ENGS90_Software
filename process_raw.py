@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 
+from analysis import class_to_color
+
 
 def classify(centroids, data, conf_thresh):
     """ Classifies pupil x,y position in data matrix into grid number
@@ -68,9 +70,18 @@ def process(rawdir, cent, outdir, max_feat=False):
 
     return (data, centroids)
 
+def load_centroids(cent):
+    """
+    Load in centroids 
+    """
+    centroids = []
+    with open(cent, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+        for row in reader:
+            centroids.append([float(x) for x in row[0].split(',')])
+    return centroids
 
-
-def plot_data(data, centroids=None, lines=False):
+def plot_data(datadir, cent, lines=False):
     """
     Plot all data provided onto multiple subplots, optionally plot the calibrated centroids and grid divisions
 
@@ -78,6 +89,24 @@ def plot_data(data, centroids=None, lines=False):
     centroids: List of lists, calibrated centroid positions. If provided, will plot mean centroid positions along with grid delineations
 
     """
+
+    centroids = load_centroids(cent)
+
+    data = []
+    conf_thresh = .75
+
+    for file in os.listdir(datadir):
+        filename = os.fsdecode(file)
+        
+        if filename.endswith(".csv") and "data" not in filename and "centroids" not in filename:   #Error handling to dodge hidden files and subdirectories
+            print(filename)
+            read = []
+            with open(datadir + '/' + filename, newline='') as csvfile:
+                reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+                for row in reader:
+                    read.append([float(x) for x in row[0].split(',')])
+            
+            data.append(read)
 
     n_columns = math.ceil(len(data)/2)
     plt.figure(1)
@@ -93,8 +122,8 @@ def plot_data(data, centroids=None, lines=False):
         elif n==3: ax.title.set_text('Simulated Seizure')
         elif n==4: ax.title.set_text('Watching TV')
 
-        for (c, x, y) in zip(d[0], d[1], d[2]):
-            plt.plot(x, y, '.', color=class_to_color(c)) 
+        for (x, y) in zip(d[0], d[1]):
+            plt.plot(x, y, '.') 
         if centroids != None:
             for (x,y) in centroids:
                 plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))
@@ -114,4 +143,4 @@ def plot_data(data, centroids=None, lines=False):
 
 if __name__ == "__main__":
 
-    process_all("experiment/")
+    plot_data("experiment/subj1/", "experiment/subj1/centroids_0.csv")
