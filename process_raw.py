@@ -4,9 +4,9 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-
-from analysis import class_to_color
-
+import statistics
+from analysis import class_to_color, separate
+from scipy.spatial import distance
 
 def classify(centroids, data, conf_thresh):
     """ Classifies pupil x,y position in data matrix into grid number
@@ -29,16 +29,21 @@ def classify(centroids, data, conf_thresh):
     return labeled
 
 def process_all(experdir, centroid="centroids_0.csv", max_feat=False):
+    n = 0.0
+    total = 0.0
     for dirName, subdirList, fileList in os.walk(experdir):
         if "subj" in dirName:
-            process(dirName + "/", centroid, dirName + "/", max_feat)
+            (n, total) = process(dirName + "/", centroid, dirName + "/", n, total, max_feat)
+    print("Low Confidence: " + str(n / total))
 
 
-def process(rawdir, cent, outdir, max_feat=False):
+def process(rawdir, cent, outdir, n,t, max_feat=False):
 
     data = []
     centroids = []
-    conf_thresh = .75
+    conf_thresh = 0
+    curr = n
+    total = t
 
 
     with open(rawdir + cent, newline='') as csvfile:
@@ -55,10 +60,17 @@ def process(rawdir, cent, outdir, max_feat=False):
             with open(rawdir + filename, newline='') as csvfile:
                 reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
                 for row in reader:
-    
                     read.append([float(x) for x in row[0].split(',')])
                     
             read = classify(centroids, np.array(read).astype(np.float), conf_thresh)
+            try:
+                r = np.array(read)[:,0]
+            except IndexError:
+                pass
+            
+            
+            curr += r[r==9].shape[0]
+            total+=len(read)
             data.append(read)
             
             with open(outdir + "data_" + filename, 'w', newline='') as csvfile:
@@ -68,7 +80,7 @@ def process(rawdir, cent, outdir, max_feat=False):
                     else: writer.writerow(sample)
                 
 
-    return (data, centroids)
+    return (curr, total)
 
 def load_centroids(cent):
     """
@@ -141,6 +153,192 @@ def plot_data(datadir, cent, lines=False):
     figure.tight_layout()
     plt.show()
 
-if __name__ == "__main__":
 
-    plot_data("experiment/subj1/", "experiment/subj1/centroids_0.csv")
+def load_all(experdir, c=False,cent=None):
+    """
+    Loads all the data from the experiment. Specific to the way the output files are saved
+
+    experdir: String, path to experiment directory
+
+    Returns [ [[conversation_0],...,[conversation_n]], [[eating_0],...,[eating_n]], [[technology_0],..,[technology_n]], [[seizure_0],..,[seizure_n]] ]
+    """
+    data = [ [], [], [], []] 
+    for dirName, subdirList, fileList in os.walk(experdir):
+        if "subj" in dirName:
+            print(dirName)
+            read = load(dirName,c,cent)
+
+            for i in range(len(read)):
+                if i == 0: j = 1
+                elif i == 1: j = 3
+                elif i == 2: j = 0
+                elif i == 3: j = 2
+                else: j = 0
+                
+                data[j].extend(read[i])
+               
+    return data
+        
+
+def load(datadir, c, cent):
+    """ 
+    Loads in data from specified directory
+    
+    datadir: string, path to csv data
+
+
+    Returns: List of lists, sublists are data from each .csv file in the specified directory
+    """
+    data = []
+    conf_thresh = 0
+
+    if c: centroids = load_centroids(datadir + cent)
+    
+    for file in os.listdir(datadir):
+        filename = os.fsdecode(file)
+        
+        if filename.endswith(".csv") and "data" not in filename and "centroid" not in filename:   #Error handling to dodge hidden files and subdirectories
+            print(filename)
+            read = []
+            with open(datadir + '/' + filename, newline='') as csvfile:
+                reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+                for row in reader:
+                    read.append([float(x) for x in row[0].split(',')])
+                        
+                i = 0
+                if c: 
+                    read = classify(centroids, np.array(read).astype(np.float), conf_thresh)
+                    i = 1
+                for add in read:
+                    if math.isnan(add[0+i]):
+                        add[0+i] = 9
+                        add[1+i] = 9
+                        add[2+i] = 0
+
+            
+            data.append(read)
+            
+    
+ 
+    return data
+
+
+def full_feature_extraction(data, labs, outdir, et=.15, c=False):
+    """
+    Extract features from raw data
+
+    data: List of lists, each sublist is a run
+    labs: List of len(data), a label for each run
+
+    Returns: List of lists, of relevant features 
+    """
+    epoch_size = 130
+    feats = []
+    labels = []
+    epoch_thresh = et
+    if c: offset = 1
+    else: offset = 0
+
+    for (run, l) in zip(data, labs):
+        n = math.floor(len(run)/(epoch_size/2))
+
+        num_sample = 0
+        for i in range(1,n):
+            f = []
+
+            splice = np.array(run[(int)((i-1)*(epoch_size/2)):(int)((i*epoch_size/2)+epoch_size/2)])
+
+            
+            if (splice[:,0+offset][splice[:,0+offset]==9].shape[0] / len(splice[:,0+offset])) <= epoch_thresh:
+
+                trimmed = np.delete(splice, np.where((splice[:, 0+offset] == 9))[0], axis=0)
+                 
+                x = trimmed[:,0+offset]
+                y = trimmed[:,1+offset]
+                conf = trimmed[:,2+offset]
+                coords = [[xp,yp] for (xp,yp) in zip(x,y)]
+
+                dists = distance.cdist(np.vstack((x,y)), np.vstack((x,y)), 'euclidean')
+
+                #Eye Tracking
+                f.append(statistics.mean(x))
+                f.append(statistics.mean(y)) 
+                f.append(max(x))
+                f.append(min(x))
+                f.append(max(y))
+                f.append(min(y))
+                f.append(max(x) - min(x))
+                f.append(max(y) - min(y))                                                                                  
+                f.append(np.amax(dists))
+                f.append(np.amin(dists))
+                f.append(np.amax(dists) - np.amin(dists))                                                                                                                                                                     #Number of times class changes
+                f.append(np.matrix(dists).mean())                                                                               
+                f.append(statistics.mean([np.linalg.norm(np.array(coords[i])-np.array(coords[i+1])) for i in range(len(coords)-1)]))
+
+                f.append((splice[:,0+offset]==9).sum())   
+                f.append(statistics.mean(conf))
+
+                if c:
+                    classified = splice[:,0]
+                    f.append(statistics.mean(classified))                                                                                   #Average class
+                    f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
+                    f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes             
+                    f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
+                    f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
+
+                #Head Tracking
+                accel_mag = [math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,3+offset]**2,splice[:,4+offset]**2,splice[:,5+offset]**2)]
+                gyro_mag = [math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,6+offset]**2,splice[:,7+offset]**2,splice[:,8+offset]**2)]
+
+                f.append(statistics.mean(accel_mag))
+                f.append(statistics.mean(gyro_mag))  
+                
+                f.append(statistics.stdev(accel_mag))         #Standard Deviation of acceleration
+                f.append(statistics.stdev(gyro_mag))         #Standard Deviation magnitude of gyroscope
+                
+                accel_max = max(accel_mag)
+                gyro_max = max(gyro_mag)
+
+                accel_min = min(accel_mag)
+                gyro_min = min(gyro_mag)
+
+                f.append(accel_max)                      #Maximum magnitude of acceleration
+                f.append(gyro_max)                      #Maximum magnitude of gyroscope
+
+                f.append(accel_min)                      #Minmum magnitude of acceleration
+                f.append(gyro_min)                      #Minimum magnitude of gyroscope
+                
+                f.append(accel_max - accel_min)
+                f.append(gyro_max - gyro_min)      
+
+
+                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
+                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
+                
+                feats.append(f)
+                num_sample+=1
+                
+                # if max(f) > 100000: 
+                #     print("HERE")
+                #     print(f)
+                # array_sum = np.sum(np.array(f))
+                # array_has_nan = np.isnan(array_sum)
+                # if array_has_nan:
+                #     print(f)
+        
+        l = (num_sample)*[l]
+        labels += l
+    print(len(feats))
+    return(feats,labels)
+
+
+
+if __name__ == "__main__":
+    data = load_all("experiment/", c=True,cent='/centroids_0.csv')
+    
+    (feat, lab) = full_feature_extraction(data, [1,0,0,0], 'experiment/features/',c=True)
+    separate(feat, lab)
+
+    #plot_data("experiment/subj1/", "experiment/subj1/centroids_0.csv")
+
+    #data = process_all("experiment/")

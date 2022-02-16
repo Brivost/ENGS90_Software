@@ -63,7 +63,6 @@ def load(datadir):
     Returns: List of lists, sublists are data from each .csv file in the specified directory
     """
     data = []
-    conf_thresh = .75
 
     for file in os.listdir(datadir):
         filename = os.fsdecode(file)
@@ -219,7 +218,7 @@ def separate(features, labels):
     auc = metrics.roc_auc_score(test_labels, probs)
     f1 = f1_score(test_labels, preds, average='macro')
     print('AUC: %.3f' % auc)
-    print('F1: %.3f', % f1)
+    print('F1: %.3f' % f1)
 
 
     #metrics.plot_roc_curve(clf, test_feat, test_labels)
@@ -280,7 +279,7 @@ def plot_histo(features, labels, coef):
 
     plt.show()
 
-def feature_extraction(data, labs, outdir, et=.45):
+def feature_extraction(data, labs, outdir, et=.15):
     """
     Extract features from raw data
 
@@ -289,7 +288,7 @@ def feature_extraction(data, labs, outdir, et=.45):
 
     Returns: List of lists, of relevant features 
     """
-    epoch_size = 260
+    epoch_size = 130
     feats = []
     labels = []
     epoch_thresh = et
