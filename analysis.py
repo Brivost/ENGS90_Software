@@ -10,13 +10,14 @@ import math
 import random
 import statistics
 import numpy as np
+import copy
 import matplotlib.pyplot as plt
+from process_raw import classify, process
 from scipy.fft import fft, fftfreq
 from scipy.stats import norm
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
-from remote_run import classify
 
 def class_to_color(c):
     if   c==0: return 'red'
@@ -152,11 +153,6 @@ def plot_accel(data):
         n+=1
         plt.figure()
 
-
-
-
-
-
 def separate(features, labels):
     """
     Run an LDA on the provided features and labels
@@ -164,6 +160,8 @@ def separate(features, labels):
     train_feat, test_feat, train_labels, test_labels = train_test_split(features, labels, test_size = 0.3, random_state = 42)
     clf = LinearDiscriminantAnalysis()
     #clf.fit(train_feat, train_labels)
+    #print(train_feat)
+    #print(train_labels)
     clf.fit_transform(train_feat, train_labels)
     clf.transform(test_feat)
     preds = clf.predict(test_feat)
@@ -233,54 +231,61 @@ def plot_histo(features, labels, coef):
 def feature_extraction(data, labs, outdir):
     """
     Extract features from raw data
-
     data: List of lists, each sublist is a run
     labs: List of len(data), a label for each run
-
     Returns: List of lists, of relevant features 
     """
     epoch_size = 130
     feats = []
     labels = []
+    epoch_thresh = .85
+
     for (run, l) in zip(data, labs):
+
         n = math.floor(len(run)/(epoch_size/2))
-        l = (n-1)*[l]
-        labels += l
+
+        num_sample = 0
         for i in range(1,n):
             f = []
 
             splice = np.array(run[(int)((i-1)*(epoch_size/2)):(int)((i*epoch_size/2)+epoch_size/2)])
             classified = splice[:,0]
+            if (classified[classified==9].shape[0] / len(classified)) <= epoch_thresh:
+                #Eye Tracking
+                f.append(statistics.mean(classified))                                                                                   #Average class
+                f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
+                f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
+                f.append((classified==9).sum())                                                                                         #Number of poor confidence values
+                f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
+                f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
 
-            #Eye Tracking
-            f.append(statistics.mean(classified))                                                                                   #Average class
-            f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
-            f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
-            f.append((classified==9).sum())                                                                                         #Number of poor confidence values
+                #Head Tracking
+                f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))          #Average acceleration
+                for (x,y,z) in zip(splice[:,7], splice[:,8], splice[:,9]):
+                    print(f"X: {x}, Y: {y}, Z: {z}")
+                f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))          #Average gyroscope 1,2,3->7,8,9
+                
+                f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))         #Standard Deviation of acceleration
+                f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))         #Standard Deviation magnitude of gyroscope
+                
+                f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Maximum magnitude of acceleration
+                f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Maximum magnitude of gyroscope
 
-            #Head Tracking
-            
-            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))
-            f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))  
-            
-            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))         #Standard Deviation of acceleration
-            f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))         #Standard Deviation magnitude of gyroscope
-            
-            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Maximum magnitude of acceleration
-            f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Maximum magnitude of gyroscope
+                f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Minmum magnitude of acceleration
+                f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minimum magnitude of gyroscope
+                
 
-            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minmum magnitude of acceleration
-            f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))                      #Minimum magnitude of gyroscope
-            
-
-            #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
-            #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
-            
-            feats.append(f)
-
- 
-    with open(outdir + "sub/features.csv", 'w', newline='') as csvfile:
-
+                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
+                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
+                
+                feats.append(f)
+                num_sample+=1
+        
+        l = (num_sample)*[l]
+        labels += l
+    print(len(feats))
+    with open(outdir + "features.csv", 'w', newline='') as csvfile:
+        
         writer = csv.writer(csvfile, delimiter=',')
         for i in range(len(feats)):
             writer.writerow(feats[i] + [labels[i]])
@@ -288,80 +293,90 @@ def feature_extraction(data, labs, outdir):
     return (feats, labels)
 
 
-def noise(data, centroids=None):
+# Adds specified level of noise to data
+# noise_scale is the scaling amount of standard deviation to add in noise (e.g. 0.1 -> 10%)
+def noise(data, centroids=None, noise_scale: float=1):
     
     conf_thresh = .7   #confidence threshold
-    noise_scale = 0.1 #scaling amount of standard deviation to add in noise (e.g. 0.1 -> 10%)
     n = 1
+    noisy_data = []
+    original_data = []
 
-    for run in data:
+    for original_data_run in data:
 
-        noisy_data = []
-        original_data = []
         labelled_original = []
         labelled_noisy = []
         classified_noisy = []
+        noise_to_be_averaged = []
+        x_data = []
+        y_data = []
 
         plt.figure(n)
 
-        x_data = np.array([])
-        y_data = np.array([])
-
         #Pull out x and y coords
         #Create original data 
-        for sample in run:
+        for sample in original_data_run:
             # Ignore NaN values
-            if ((not math.isnan(sample[1])) and (not math.isnan(sample[2]))):
-                x_data = np.append(x_data, [sample[1]])
-                y_data = np.append(y_data, [sample[2]])
-                original_data.append([sample[0], sample[1], sample[2]])
-
-        #Plot original data
-        plt.plot(x_data, y_data, ".", color = "blue")
+            if ((not math.isnan(sample[0])) and (not math.isnan(sample[1]))):
+                x_data = np.append(x_data, sample[0])
+                y_data = np.append(y_data, sample[1])
+                # Plot original data
+                plt.plot(sample[0], sample[1], ".", color = "blue")
 
         #Find x and y standard deviations
         x_stdev = statistics.stdev(x_data)
         y_stdev = statistics.stdev(y_data)
 
         #Add noise to original data
-        for sample in run:
+        noisy_data_run = copy.deepcopy(original_data_run)
+
+        for i in range(len(original_data_run)):
             x_noise = np.random.normal(0, noise_scale*x_stdev)
-            y_noise = np.random.normal(0, noise_scale*y_stdev)
-            sample[1] = sample[1] + x_noise
-            sample[2] = sample[2] + y_noise
+            y_noise = np.random.normal(0, noise_scale*y_stdev) 
+            noise_to_be_averaged = np.append(noise_to_be_averaged, (abs(x_noise), abs(y_noise)))
+            noisy_x_coord = original_data_run[i][0] + x_noise
+            noisy_y_coord = original_data_run[i][1] + y_noise
+            
             # Ignore NaN values
-            if ((not math.isnan(sample[1])) and (not math.isnan(sample[2]))):
-                noisy_data.append([sample[1], sample[2], 1])
-                plt.plot(sample[1], sample[2], ".", color = "red", alpha = 0.3)
+            if (not math.isnan(original_data_run[i][0])) and (not math.isnan(original_data_run[i][1])):
+                noisy_data_run[i][0] = noisy_x_coord
+                noisy_data_run[i][1] = noisy_y_coord
+                plt.plot(noisy_x_coord, noisy_y_coord, ".", color = "red", alpha = 0.3)
 
         #Plot centroids
         if centroids != None:
             for (x,y) in centroids:
                 plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))
+        
+        #Classify original data
+        classified_original = classify(centroids, original_data_run, conf_thresh)
+        #Classify noisy data
+        classified_noisy = classify(centroids, noisy_data_run, conf_thresh)
 
-        #Classify noisy data to compare to original
-        classified_noisy = classify(centroids, noisy_data, conf_thresh)
+        # Full datasets
+        noisy_data.append(classified_noisy)
+        original_data.append(classified_original)
 
+        #Extract grid number from original
+        for sample in classified_original: 
+            labelled_original = np.append(labelled_original, sample[0])
         # Extract grid number from classified data
         for sample in classified_noisy: 
-            labelled_noisy.append(sample[0])
-        #Extract grid number from original
-        for sample in original_data: 
-            labelled_original.append(sample[0])
-    
+            labelled_noisy = np.append(labelled_noisy, sample[0])
+
         #Calculate percent correct between labelled original and noisy
-        percent_correct = round((sum(1 for a,b in zip(labelled_noisy, labelled_original) if a ==b)/len(labelled_original)) * 100)
+        percent_correct = round((sum(1 for a,b in zip(labelled_noisy, labelled_original) if a ==b)/len(labelled_original) * 100),2)
 
         #Calculate average noise variance
-        average_noise_variance = ((abs(x_noise)+abs(y_noise))/2)**2
-        print(x_noise)
-        print(y_noise)
+        #average_noise_variance = ((abs(x_stdev)+abs(y_stdev))/2)**2
+        average_noise_variance = (statistics.mean(noise_to_be_averaged))**2
 
         print(f"Run {n}: {percent_correct}% similar with noise variance {average_noise_variance}")
 
         n += 1
 
     plt.show()
+    return(original_data, noisy_data)
 
 
 if __name__ == "__main__":
@@ -384,5 +399,24 @@ if __name__ == "__main__":
     #plot_data(data, centroids)
     #plot_accel(data)
 
-    (data, centroids) = load('plot_test/')
-    noise(data, centroids)
+    # original_data = []
+
+    # (data, centroids) = load("subj1/")
+    # for run in data:
+    #     original_classified = classify(centroids, run, 0.7)
+    #     original_data = np.append(original_data, original_classified)
+    #(original_data, noisy_data) = noise(data, centroids)
+    (data, centroids) = process("subj1/", "subj1/", "centroids.csv")
+    
+    # for run1, run2 in zip(original_data, noisy_data):
+    #     for sample1, sample2 in zip(run1, run2):
+    #         print(f"Original: {sample1}, Noisy: {sample2}")
+
+    # (feat, lab) = feature_extraction(data, [0,1], 'plot_test/')
+    # separate(feat, lab)
+    # (feat, lab) = feature_extraction(data, [0,1], 'plot_test/')
+    # separate(feat, lab)
+
+    #Seizure vs Non-Seizure
+    (feat, lab) = feature_extraction(data, [0,1], 'subj1/features/')
+    separate(feat, lab)
