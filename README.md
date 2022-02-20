@@ -33,9 +33,45 @@ Processes the raw output files written by remote_run.py into a hardware-agnostic
 Eye position classification, Acceleration_X, Acceleration_Y, Acceleration_Z, Gyroscope_X, Gyroscope_Y, Gyroscope_Z
 <br><br>
 
-Performs analysis specific 
+Relies on the experimental data packaged in a directory with sub-directories subj1,...,subjn corresponding to each subject in the experiment. Each subdirectory contains .csv files named, 'technology', 'eating', 'conversation', 'seizure_right' and seizure_left', along with a set of centroid files, each calibrated in different ways, with suffixes standarded across each subject subdirectory. The user can designate which of these files to use when classifing eye position.
+
+<br>
+Additionally, performs analysis requiring specific output from the Pupil Core (x, y, and confidence values) such as plotting eye tracking data colored by classification value and extracting additional features for LDA analysis. 
 
 ## analysis.py
+Loads in the experimental data from the hardware-agnostic files from an experimental directory as specified above. Each behavior .csv once converted to a hardware-agnostic format will contain a "data_" prefix, which analysis searches for while loading data.
+<br>
+
+### Feature Extraction
+Using loaded .csv files, the data is chunked into ~5 second long "epochs" of 130 samples each. The following features are extracted from each epoch:<br><br>
+<b> Eye Tracking </b>
+* Average classification value
+* Number of unique classifications
+* Number of changes between classifications from one sample to the next
+* Number of low-confidence classifcations
+* Percentage of samples in the top and bottom edges of the grid (for 3x3 grid and up)
+* Percentage of samples in left and right edges of the grid (for 3x3 grid and up)
+<br>
+
+<b> Head Tracking </b>
+
+* Average magnitude of accelerometer readout
+* Average magnitude of gyroscope readout
+* Standard deviation of accelerometer readout
+* Standard deviation of gyroscope readout
+* Maximum magnitude of accelerometer readout
+* Maximum magnitude of gyroscope readout
+* Minimum magnitude of accelerometer readout
+* Minimum magnitude of gyroscope readout
+* Range of magnitude of accelerometer readout
+* Range of magnitude of gyroscope readout
+
+### Linear Discriminant Analysis
+The extracted features are then run through a Linear Discriminant Analysis. 5-fold cross validation averages area under the receiver operating characteristic curve (ROC AUC score) and F1 macro score to evaluate the classifier. The following figures are produced:
+<br>
+ROC CURVE
+<br>
+The receiver operating characteristic 
 
 ## experiment
 Directory containing all the raw recorded data for each of our subjects, designated by behavior. 
@@ -58,4 +94,7 @@ Generates a figure of gyroscope and accelerometer readout. xlim and ylim values 
 
 
 ### grid
-Generates a reference grid labeled with classification values
+Generates a reference grid labeled with classification values.
+
+<img width="626" alt="Screen Shot 2022-02-16 at 8 58 42 PM" src="https://user-images.githubusercontent.com/30049464/154389967-7435238a-c7e5-4ad9-9022-6f653a447afa.png">
+
