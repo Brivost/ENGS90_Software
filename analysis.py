@@ -15,7 +15,7 @@ from scipy.fft import fft, fftfreq
 from scipy.stats import norm
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, cross_val_score, ShuffleSplit
 from sklearn import metrics
 from sklearn.metrics import f1_score
 
@@ -187,7 +187,7 @@ def plot_accel(data):
             if i==4 or i==5 or i==6 and n==1:
                 ax.set_ylim([-2000, 2000])
         
-        plt.savefig('figures/' + str(n) + ".png")
+        plt.savefig('figures/' + str(n) + ".png", dpi=600)
         n+=1
         plt.figure()
 
@@ -196,11 +196,12 @@ def plot_accel(data):
 
 
 
-def separate(features, labels):
+def separate(features, labels, outdir, title=None, n=None):
     """
     Run an LDA on the provided features and labels
     """
     train_feat, test_feat, train_labels, test_labels = train_test_split(features, labels, test_size = 0.3, random_state = 42)
+    
     clf = LinearDiscriminantAnalysis()
     #clf = KNeighborsClassifier(n_neighbors=5)
     
@@ -209,6 +210,7 @@ def separate(features, labels):
     clf.fit_transform(train_feat, train_labels)
     clf.transform(test_feat)
     
+    
     preds = clf.predict(test_feat)
 
     
@@ -216,40 +218,40 @@ def separate(features, labels):
     # keep probabilities for the positive outcome only
     probs = probs[:, 1]
     auc = metrics.roc_auc_score(test_labels, probs)
-    f1 = f1_score(test_labels, preds, average='macro')
+
+    cv = ShuffleSplit(n_splits=5, test_size=0.3, random_state=42)
+    scores = cross_val_score(clf, features, labels, cv=cv, scoring='f1_macro')
+    f1 = np.average(scores)
     print('AUC: %.3f' % auc)
     print('F1: %.3f' % f1)
+    metrics.plot_roc_curve(clf, test_feat, test_labels)
 
 
-    #metrics.plot_roc_curve(clf, test_feat, test_labels)
+    if n== 0: lab = "Technology"
+    elif n==1: lab = "Eating"
+    elif n==2: lab = "Conversation"
+    else: lab = "Non-Seizure"
+    if title != None: plt.title(title)
+    plt.savefig(outdir + lab + "/" + lab + "ROC", dpi=600)
+
     
+    importance = 10*clf.coef_[0]
 
-    #plt.figure()
-    #importance = 10*clf.coef_[0]
-    #print(importance)
-    # for i,v in enumerate(importance):
-    #     print('Feature: %0d, Score: %.5f' % (i,v))
-    #full = ['Average Eye', '#Unique', '#Changes', '#Low-Conf', '%TB', '%LR' 'Avg Accel Mag', 'Avg Gyro Mag', 'Std Accel Mag', 'Std Gyro Mag', 'Accel Max', 'Gyro Max', 'Accel Min', 'Gyro Min']
-    #justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
-    #plt.bar(full, importance)
-    #plt.xticks(rotation=90, fontsize=8)
-    #plt.show()
-
-    #plot_histo(features, labels, importance)
-    auc = 0
+    plot_histo(features, labels, outdir, importance, lab, title=title)
+    
     return (auc,f1)
 
 
-def plot_histo(features, labels, coef):
+def plot_histo(features, labels, outdir, coef, lab, title=None):
     mapped = []
     # for feat in features:
     #     for (c, f) in zip(coef, feat):
     #         print(c*f)
-
-    norm_coef = coef / np.linalg.norm(np.array(coef))
-    features = np.array(features).dot(norm_coef.T)
-
     
+    norm_coef = coef / np.linalg.norm(np.array(coef))
+    feature_table(norm_coef, outdir, lab)
+    
+    features = np.array(features).dot(norm_coef.T)
 
     feat_1 = []
     feat_0 = []
@@ -262,8 +264,10 @@ def plot_histo(features, labels, coef):
     #mapped_0 = [sum([c*f for (c,f) in zip(coef, feat)]) for feat in feat_0]
 
     plt.figure()
-    plt.hist(feat_1, bins=50, color='blue', stacked=True, alpha=0.8, ec='black', density=True)
-    plt.hist(feat_0, bins=50, color='red', stacked=True, alpha=0.8, ec='black', density=True)
+    if title != None: plt.title(title)
+    plt.hist(feat_1, bins=50, color='red', stacked=True, alpha=0.8, ec='black', density=True, label=lab)
+    plt.hist(feat_0, bins=50, color='blue', stacked=True, alpha=0.8, ec='black', density=True, label="Seizure")
+    plt.legend(loc="upper left")
 
     xmin, xmax = plt.xlim()
     mu1, std1 = norm.fit(feat_1)
@@ -273,13 +277,37 @@ def plot_histo(features, labels, coef):
     p1 = norm.pdf(x, mu1, std1)
     p0 = norm.pdf(x, mu0, std0)
 
-    plt.plot(x, p1, color='blue')
-    plt.plot(x, p0, color='red')
+    plt.plot(x, p1, color='red')
+    plt.plot(x, p0, color='blue')
+    plt.savefig(outdir + lab + "/" + lab + "Histo", dpi=600)
 
 
-    plt.show()
 
-def feature_extraction(data, labs, outdir, et=.15):
+
+
+def feature_table(coef, outdir, lab):
+
+    features = ["Average Eye Classification", "# Unique Eye Classificaitons", "# Classifcation Changes", "# Low-Confidence Samples", 
+    "% Top/Bottom Row",  "% Left/Right Column", "Average Accelerometer Magnitude", "Average Gyroscope Magnitude", "Std Accelerometer Magnitude"
+    , "Std Gyroscope Magnitude", "Maximum Accelerometer", "Maximum Gyroscope", "Minimum Accelerometer", "Minimium Gyroscope", "Range Accelerometer",
+    "Range Gyroscope"]
+
+    #justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
+    plt.figure()
+    plt.bar(features, coef)
+    plt.xticks(rotation=90, fontsize=8)
+    plt.savefig(outdir + lab + "/" + lab + "Features", dpi=600)
+    #plt.show()
+    sorts = sorted(zip(coef, features), key=lambda x: abs(x[0]))
+    for (num, lab) in reversed(sorts):
+        print(lab + " : " + ('%.3f' % num))
+
+
+
+
+
+
+def feature_extraction(data, labs, outdir, et=.25):
     """
     Extract features from raw data
 
@@ -314,18 +342,29 @@ def feature_extraction(data, labs, outdir, et=.15):
 
                 #Head Tracking
                 
-                f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))
-                f.append(statistics.mean([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))  
-                
-                f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))         #Standard Deviation of acceleration
-                f.append(statistics.stdev([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))         #Standard Deviation magnitude of gyroscope
-                
-                f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))                      #Maximum magnitude of acceleration
-                f.append(max([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Maximum magnitude of gyroscope
+                accel_mag = [math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]
+                gyro_mag = [math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]
 
-                f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]))                      #Minmum magnitude of acceleration
-                f.append(min([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))                      #Minimum magnitude of gyroscope
+                f.append(statistics.mean(accel_mag))
+                f.append(statistics.mean(gyro_mag))  
                 
+                f.append(statistics.stdev(accel_mag))         #Standard Deviation of acceleration
+                f.append(statistics.stdev(gyro_mag))         #Standard Deviation magnitude of gyroscope
+                
+                accel_max = max(accel_mag)
+                gyro_max = max(gyro_mag)
+
+                accel_min = min(accel_mag)
+                gyro_min = min(gyro_mag)
+
+                f.append(accel_max)                      #Maximum magnitude of acceleration
+                f.append(gyro_max)                      #Maximum magnitude of gyroscope
+
+                f.append(accel_min)                      #Minmum magnitude of acceleration
+                f.append(gyro_min)                      #Minimum magnitude of gyroscope
+                
+                f.append(accel_max - accel_min)
+                f.append(gyro_max - gyro_min)      
 
                 #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
                 #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
@@ -350,22 +389,23 @@ if __name__ == "__main__":
 
 
     data = load_all('experiment/')
+    outdir = "figures/3x3Analysis/AllSubEH/"
 
     #Seizure vs Technology
     (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
-    separate(feat, lab)
+    separate(feat, lab, outdir, title="Seizure vs Technology", n=0)
 
     #Seizure vs Eating
     (feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
-    separate(feat, lab)
+    separate(feat, lab, outdir, title="Seizure vs Eating", n=1)
 
     #Seizure vs Coversation
     (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
-    separate(feat, lab)
+    separate(feat, lab, outdir, title="Seizure vs Conversation", n=2)
 
     #Seizure vs Non-Seizure
     (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/')
-    separate(feat, lab)
+    separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
     
     
     #Vary Threshold
@@ -380,8 +420,8 @@ if __name__ == "__main__":
         print(i)
         (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/', i/100.0)
         (auc,f1) = separate(feat, lab)
-        if auc > best[0]:
-            best = [auc, i]
+        if f1 > best[0] and i > 5:
+            best = [f1, i]
         aucs.append(auc)
         f1s.append(f1)
         lenfeats.append(len(feat))
@@ -389,10 +429,22 @@ if __name__ == "__main__":
     
 
     plt.figure()
-    plt.plot(range(1,101), aucs, label="AUC Scores")
-    plt.plot(range(1,101), f1s, label="F1 Scores")
-    plt.plot(range(1,101), [x / float(biggest) for x in lenfeats], label="Percentage of Samples")
+    figure, axes = plt.subplots(nrows=2, ncols=2)
+    figure.suptitle("Threshold Selection")
+    ax = plt.subplot(2,1,1)
+    plt.plot(range(1,101), aucs, label="AUC Score")
+    plt.plot(range(1,101), f1s, label="F1 Score")
+    #ax.title.set_text('Seizure vs Non-Seizure Classifier Performance')
+    #ax.set_xlabel('Low-Confidence Sample Percentage Threshold')
+    plt.legend(loc="lower left")
+    ax = plt.subplot(2,1,2)
+    
+    plt.plot(range(1,101), [100*(x / float(biggest)) for x in lenfeats], label="Percentage of Epochs Included")
+    
+    ax.set_xlabel('Low-Confidence Sample Percentage Threshold')
+    #ax.set_ylabel('Percentage of Epochs Included')
     plt.legend(loc="lower right")
+    
     print("Best threshold is " + str(best[0]) + " at " + str(best[1]))
     plt.show()
     """

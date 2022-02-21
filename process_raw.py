@@ -334,11 +334,11 @@ def full_feature_extraction(data, labs, outdir, et=.15, c=False):
 
 
 if __name__ == "__main__":
-    data = load_all("experiment/", c=True,cent='/centroids_0.csv')
+    #data = load_all("experiment/", c=True,cent='/centroids_0.csv')
     
-    (feat, lab) = full_feature_extraction(data, [1,0,0,0], 'experiment/features/',c=True)
-    separate(feat, lab)
+    #(feat, lab) = full_feature_extraction(data, [1,0,0,0], 'experiment/features/',c=True)
+    #separate(feat, lab)
 
     #plot_data("experiment/subj1/", "experiment/subj1/centroids_0.csv")
 
-    #data = process_all("experiment/")
+    data = process_all("experiment/")
