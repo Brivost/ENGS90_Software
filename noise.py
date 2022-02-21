@@ -127,7 +127,7 @@ def noise(data, centroids=None, noise_level: float=0.1, plot=True): # used to be
     # Average percent correct
     average_percent_correct = np.mean(percent_correct_list)
 
-    return(original_data, noisy_data) #, average_noise_variance, average_percent_correct)
+    return(original_data, noisy_data, average_noise_variance, average_percent_correct)
 
 def load_all(experdir):
     """
@@ -179,7 +179,7 @@ def load(datadir):
             
     return data
 
-def separate(features, labels):
+def separate(features, labels, plot=False):
     """
     Run an LDA on the provided features and labels
     """
@@ -203,23 +203,24 @@ def separate(features, labels):
     print('AUC: %.3f' % auc)
     print('F1: %.3f' % f1)
 
-    metrics.plot_roc_curve(clf, test_feat, test_labels)
-        
+    if plot:
+        metrics.plot_roc_curve(clf, test_feat, test_labels)
+            
 
-        #plt.figure()
-        #importance = 10*clf.coef_[0]
-        #print(importance)
-        # for i,v in enumerate(importance):
-        #     print('Feature: %0d, Score: %.5f' % (i,v))
-        #full = ['Average Eye', '#Unique', '#Changes', '#Low-Conf', '%TB', '%LR' 'Avg Accel Mag', 'Avg Gyro Mag', 'Std Accel Mag', 'Std Gyro Mag', 'Accel Max', 'Gyro Max', 'Accel Min', 'Gyro Min']
-        #justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
-        #plt.bar(full, importance)
-        #plt.xticks(rotation=90, fontsize=8)
-    
-    plt.show()
+            #plt.figure()
+            #importance = 10*clf.coef_[0]
+            #print(importance)
+            # for i,v in enumerate(importance):
+            #     print('Feature: %0d, Score: %.5f' % (i,v))
+            #full = ['Average Eye', '#Unique', '#Changes', '#Low-Conf', '%TB', '%LR' 'Avg Accel Mag', 'Avg Gyro Mag', 'Std Accel Mag', 'Std Gyro Mag', 'Accel Max', 'Gyro Max', 'Accel Min', 'Gyro Min']
+            #justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
+            #plt.bar(full, importance)
+            #plt.xticks(rotation=90, fontsize=8)
+        
+        plt.show()
 
     #plot_histo(features, labels, importance)
-    auc = 0
+    #auc = 0
     return (auc,f1)
 
 def eye_tracking_feature_extraction(data, labs, outdir, et=.15, c=False):
@@ -357,8 +358,8 @@ def separability_vs_noise(original_data, centroids, min_noise, max_noise, noise_
         (original_data2, noisy_data, average_noise_variance, percent_correct) = noise(original_data, centroids=centroids, noise_level=noise_scale, plot=False)
 
         (feat,lab) = eye_tracking_feature_extraction(noisy_data, [1,0,0,0], "single_noisy_experiment/features1/", c = True)
-        (auroc, f1) = separate(feat, lab, plot=False)
-        print(f"curent auroc: {auroc}")
+        (auroc, f1) = separate(feat, lab)
+        print(f"current f1: {f1}")
 
         auroc_list = np.append(auroc_list, auroc)
         f1_list = np.append(f1_list, f1)
@@ -366,7 +367,7 @@ def separability_vs_noise(original_data, centroids, min_noise, max_noise, noise_
         percent_correct_list = np.append(percent_correct_list, percent_correct)
 
     for auroc, f1, percent_correct, noise_scale in zip(auroc_list, f1_list, percent_correct_list, noise_list):
-        plt.plot(auroc, noise_scale, "-")
+        plt.plot(noise_scale, f1, marker = 'o', color='blue')
 
     print(f"auroc: {auroc_list}")
     print(f"f1: {f1_list}")
@@ -403,37 +404,28 @@ if __name__ == "__main__":
     # (feat2,lab2) = full_feature_extraction(noisy_data, [1,0,0,0], "single_noisy_experiment/features2/", c=True)
     # separate(feat2,lab2)
 
-
-
     #SINGLE SUBJECT DATA CLEAN AND NOISY, SEPARATE ON ONLY EYE DATA
-    cleaned_original_data = load_all_9("single_noisy_experiment/", c=True, cent='/centroids_0.csv')
-    original_untouched_data = load_all("single_noisy_experiment/")
-    centroids = load_centroids("single_noisy_experiment/subj1/centroids_0.csv")
-    (original_data2, noisy_data) = noise(original_untouched_data, centroids, noise_level=1, plot=False)
+    # cleaned_original_data = load_all_9("single_noisy_experiment/", c=True, cent='/centroids_0.csv')
+    # original_untouched_data = load_all("single_noisy_experiment/")
+    # centroids = load_centroids("single_noisy_experiment/subj8/centroids_0.csv")
+    # (original_data2, noisy_data) = noise(original_untouched_data, centroids, noise_level=1, plot=False)
 
-    # for run1, run2 in zip(cleaned_original_data, noisy_data):
-    #     for sample1, sample2 in zip(run1, run2):
-    #         print(f"original: {sample1}, noisy: {sample2}")
+    # # for run1, run2 in zip(cleaned_original_data, noisy_data):
+    # #     for sample1, sample2 in zip(run1, run2):
+    # #         print(f"original: {sample1}, noisy: {sample2}")
 
-    (feat1,lab1) = eye_tracking_feature_extraction(cleaned_original_data, [1,0,0,0], "single_noisy_experiment/features1/", c=True)
-    separate(feat1,lab1)
+    # (feat1,lab1) = eye_tracking_feature_extraction(cleaned_original_data, [1,0,0,0], "single_noisy_experiment/features1/", c=True)
+    # separate(feat1,lab1)
 
-    (feat2,lab2) = eye_tracking_feature_extraction(noisy_data, [1,0,0,0], "single_noisy_experiment/features2/", c=True)
-    separate(feat2,lab2)
+    # (feat2,lab2) = eye_tracking_feature_extraction(noisy_data, [1,0,0,0], "single_noisy_experiment/features2/", c=True)
+    # separate(feat2,lab2)
 
     #SINGLE SUBJECT DATA VARYING NOISY
-    # cleaned_original_data = load_all_9("single_noisy_experiment/", c = True, cent='/centroids_0.csv')
-    # original_untouched_data = load_all("single_noisy_experiment/", c = False, cent = '/centroids_0.csv')
-    # centroids = load_centroids("single_noisy_experiment/subj1/centroids_0.csv")
+    cleaned_original_data = load_all_9("single_noisy_experiment/", c = True, cent='/centroids_0.csv')
+    original_untouched_data = load_all("single_noisy_experiment/")
+    centroids = load_centroids("single_noisy_experiment/subj1/centroids_0.csv")
 
-    # separability_vs_noise(original_untouched_data, centroids, 0, 0.2, 0.1)
-
-    #SINGLE SUBJECT RETRY
-    # cleaned_original_data = load_all_9("single_noisy_experiment/", c = True, cent='/centroids_0.csv') #classifies and 9's nans
-
-    # (feat,lab) = full_feature_extraction(cleaned_original_data, [1,0,0,0], "single_noisy_experiment/features1/", c=True)
-    # separate(feat,lab)
-
+    separability_vs_noise(original_untouched_data, centroids, 0, 2, 0.1)
 
 
 
