@@ -223,7 +223,7 @@ def load(datadir, c, cent):
     return data
 
 
-def full_feature_extraction(data, labs, outdir, et=.15, c=False):
+def full_feature_extraction(data, labs, outdir, et=.25, c=False):
     """
     Extract features from raw data
 
@@ -275,14 +275,17 @@ def full_feature_extraction(data, labs, outdir, et=.15, c=False):
                 f.append(np.matrix(dists).mean())                                                                               
                 f.append(statistics.mean([np.linalg.norm(np.array(coords[i])-np.array(coords[i+1])) for i in range(len(coords)-1)]))
 
-                f.append((splice[:,0+offset]==9).sum())   
+                 
                 f.append(statistics.mean(conf))
+                f.append(statistics.stdev(conf))
+                f.append((splice[:,0+offset]==9).sum())       
 
                 if c:
                     classified = splice[:,0]
                     f.append(statistics.mean(classified))                                                                                   #Average class
                     f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
-                    f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes             
+                    f.append((np.diff(classified)!=0).sum())  
+                    f.append((splice[:,0+offset]==9).sum())                                                                                #Number of times class changes             
                     f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
                     f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
 
@@ -334,11 +337,30 @@ def full_feature_extraction(data, labs, outdir, et=.15, c=False):
 
 
 if __name__ == "__main__":
-    #data = load_all("experiment/", c=True,cent='/centroids_0.csv')
+    #data = process_all("experiment/", centroid="centroids_1.csv")
+    
+    data = load_all("experiment/", c=False,cent='/centroids_0.csv')
+    outdir = "figures/3x3Analysis/FullFeature_woClass/"
+
+    #Seizure vs Technology
+    (feat, lab) = full_feature_extraction([data[0], data[1]], [1,0], 'experiment/features/', c=False)
+    separate(feat, lab, outdir, title="Seizure vs Technology", n=0)
+
+    #Seizure vs Eating
+    (feat, lab) = full_feature_extraction([data[0], data[2]], [1,0], 'experiment/features/', c=False)
+    separate(feat, lab, outdir, title="Seizure vs Eating", n=1)
+
+    #Seizure vs Coversation
+    (feat, lab) = full_feature_extraction([data[0], data[3]], [1,0], 'experiment/features/', c=False)
+    separate(feat, lab, outdir, title="Seizure vs Conversation", n=2)
+
+    #Seizure vs Non-Seizure
+    (feat, lab) = full_feature_extraction(data, [1,0,0,0], 'experiment/features/',c=False)
+    separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
     
     #(feat, lab) = full_feature_extraction(data, [1,0,0,0], 'experiment/features/',c=True)
     #separate(feat, lab)
 
     #plot_data("experiment/subj1/", "experiment/subj1/centroids_0.csv")
-
-    data = process_all("experiment/")
+    
+  

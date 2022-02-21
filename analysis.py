@@ -63,7 +63,7 @@ def load(datadir):
     Returns: List of lists, sublists are data from each .csv file in the specified directory
     """
     data = []
-
+    print(datadir)
     for file in os.listdir(datadir):
         filename = os.fsdecode(file)
         
@@ -76,9 +76,7 @@ def load(datadir):
                     read.append([float(x) for x in row[0].split(',')])
             
             data.append(read)
-            
     
- 
     return data
 
 def load_centroids(cent):
@@ -224,6 +222,7 @@ def separate(features, labels, outdir, title=None, n=None):
     f1 = np.average(scores)
     print('AUC: %.3f' % auc)
     print('F1: %.3f' % f1)
+
     metrics.plot_roc_curve(clf, test_feat, test_labels)
 
 
@@ -233,6 +232,12 @@ def separate(features, labels, outdir, title=None, n=None):
     else: lab = "Non-Seizure"
     if title != None: plt.title(title)
     plt.savefig(outdir + lab + "/" + lab + "ROC", dpi=600)
+
+    plt.figure()
+    table = plt.table(cellText = [[f1, auc, len(features)]], colLabels=("F1", "AUC", "#Features"), loc="center")
+    plt.axis('off')
+    plt.grid('off')
+    plt.savefig(outdir + lab + "/" + lab + "LDAScores", dpi=600, bbox_inches="tight")
 
     
     importance = 10*clf.coef_[0]
@@ -286,21 +291,34 @@ def plot_histo(features, labels, outdir, coef, lab, title=None):
 
 
 def feature_table(coef, outdir, lab):
+    full = ["Average X", "Average Y", "Max X", "Min X", "Max Y", "Min Y", "Range X", "Range Y", "Max Distance btwn Points", "Min Distance btwn Points", 
+    "Range Distance btwn Points", "Average Distance btwn all Points", "Average Distance btwn Adjacent Points", "Average Conf", "Std Conf", "# Low-Confidence Samples"]
+    eye = ["Average Eye Classification", "# Unique Eye Classificaitons", "# Classifcation Changes", "# Low-Confidence Samples", 
+    "% Top/Bottom Row",  "% Left/Right Column"] 
 
-    features = ["Average Eye Classification", "# Unique Eye Classificaitons", "# Classifcation Changes", "# Low-Confidence Samples", 
-    "% Top/Bottom Row",  "% Left/Right Column", "Average Accelerometer Magnitude", "Average Gyroscope Magnitude", "Std Accelerometer Magnitude"
+    head = ["Average Accelerometer Magnitude", "Average Gyroscope Magnitude", "Std Accelerometer Magnitude"
     , "Std Gyroscope Magnitude", "Maximum Accelerometer", "Maximum Gyroscope", "Minimum Accelerometer", "Minimium Gyroscope", "Range Accelerometer",
     "Range Gyroscope"]
 
-    #justeye = ['Average Eye Class', '#Unique', '#Class Changes', '#Low-Confidence']
+    ideal = ["% Left/Right Column", "Average Accelerometer Magnitude"]
+
+    features = eye+head
+
+
+
     plt.figure()
     plt.bar(features, coef)
     plt.xticks(rotation=90, fontsize=8)
     plt.savefig(outdir + lab + "/" + lab + "Features", dpi=600)
     #plt.show()
-    sorts = sorted(zip(coef, features), key=lambda x: abs(x[0]))
-    for (num, lab) in reversed(sorts):
-        print(lab + " : " + ('%.3f' % num))
+    sorts = reversed(sorted(zip(coef, features), key=lambda x: abs(x[0])))
+
+    plt.figure()
+    sorts = [(sub[1], sub[0]) for sub in sorts]
+    table = plt.table(cellText = sorts, colLabels=("Feature", "Normalized Coefficient"), loc="center")
+    plt.axis('off')
+    plt.grid('off')
+    plt.savefig(outdir + lab + "/" + lab + "FeaturesTable", dpi=600, bbox_inches="tight")
 
 
 
@@ -332,13 +350,15 @@ def feature_extraction(data, labs, outdir, et=.25):
             classified = splice[:,0]
             if (classified[classified==9].shape[0] / len(classified)) <= epoch_thresh:
                 #Eye Tracking
-                f.append(statistics.mean(classified))                                                                                   #Average class
+                
+                f.append(statistics.mean(classified))   
+                #f.append(statistics.stdev(classified))                                                                                #Average class
                 f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
                 f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
                 f.append((classified==9).sum())                                                                                         #Number of poor confidence values
                 f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
                 f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
-
+                
 
                 #Head Tracking
                 
@@ -365,7 +385,7 @@ def feature_extraction(data, labs, outdir, et=.25):
                 
                 f.append(accel_max - accel_min)
                 f.append(gyro_max - gyro_min)      
-
+                
                 #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
                 #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
                 
@@ -383,29 +403,50 @@ def feature_extraction(data, labs, outdir, et=.25):
 
     return (feats, labels)
 
-
-
-if __name__ == "__main__":
-
-
-    data = load_all('experiment/')
-    outdir = "figures/3x3Analysis/AllSubEH/"
-
+def gen_figs(data,outdir):
     #Seizure vs Technology
     (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
-    separate(feat, lab, outdir, title="Seizure vs Technology", n=0)
+    try: separate(feat, lab, outdir, title="Seizure vs Technology", n=0)
+    except Exception as e: print("Failed Seizure vs Technology!")
 
     #Seizure vs Eating
     (feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
-    separate(feat, lab, outdir, title="Seizure vs Eating", n=1)
-
+    try: separate(feat, lab, outdir, title="Seizure vs Eating", n=1)
+    except Exception as e: print("Failed Seizure vs Eating!")
     #Seizure vs Coversation
     (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
-    separate(feat, lab, outdir, title="Seizure vs Conversation", n=2)
+    try: separate(feat, lab, outdir, title="Seizure vs Conversation", n=2)
+    except Exception as e: print("Failed Seizure vs Conversation!")
 
     #Seizure vs Non-Seizure
     (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/')
-    separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
+    try:separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
+    except Exception as e: print("Failed Seizure vs Non-Seizure!")
+
+
+if __name__ == "__main__":
+    #data = load_all('experiment/')
+    outdir = "figures/3x3Analysis/Subs/"
+
+    for j in range(1,9):
+        data = [ [], [], [], []] 
+        read = load('experiment/subj'+str(j)+"/")
+        for i in range(len(read)):
+            if i > 0:
+                data[i-1].extend(read[i])
+            else:
+                data[i].extend(read[i])
+        path = outdir+"subj"+str(j)+"/"
+        if not os.path.isdir(path):
+            print(path)
+            os.makedirs(path, exist_ok=True)
+
+        if not os.path.isdir(path+"Technology/"): os.makedirs(path + "Technology/", exist_ok=True)
+        if not os.path.isdir(path+"Eating/"): os.makedirs(path + "Eating/", exist_ok=True)
+        if not os.path.isdir(path+"Conversation/"): os.makedirs(path + "Conversation/", exist_ok=True)
+        if not os.path.isdir(path+"Non-Seizure/"): os.makedirs(path + "Non-Seizure/", exist_ok=True)
+        gen_figs(data, path)
+
     
     
     #Vary Threshold
