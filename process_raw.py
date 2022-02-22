@@ -337,11 +337,12 @@ def full_feature_extraction(data, labs, outdir, et=.25, c=False):
 
 
 if __name__ == "__main__":
-    #data = process_all("experiment/", centroid="centroids_1.csv")
+    data = process_all("experiment/", centroid="centroids_2x2.csv")
     
-    data = load_all("experiment/", c=False,cent='/centroids_0.csv')
-    outdir = "figures/3x3Analysis/FullFeature_woClass/"
+    #data = load_all("experiment/", c=False,cent='/centroids_2x2.csv')
+    #outdir = "figures/3x3Analysis/FullFeature_woClass/"
 
+    """
     #Seizure vs Technology
     (feat, lab) = full_feature_extraction([data[0], data[1]], [1,0], 'experiment/features/', c=False)
     separate(feat, lab, outdir, title="Seizure vs Technology", n=0)
@@ -362,5 +363,5 @@ if __name__ == "__main__":
     #separate(feat, lab)
 
     #plot_data("experiment/subj1/", "experiment/subj1/centroids_0.csv")
-    
+    """
   

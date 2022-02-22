@@ -300,9 +300,10 @@ def feature_table(coef, outdir, lab):
     , "Std Gyroscope Magnitude", "Maximum Accelerometer", "Maximum Gyroscope", "Minimum Accelerometer", "Minimium Gyroscope", "Range Accelerometer",
     "Range Gyroscope"]
 
-    ideal = ["% Left/Right Column", "Average Accelerometer Magnitude"]
+    txteye = ["Average Eye Classification", "# Unique Eye Classificaitons", "# Classifcation Changes", "# Low-Confidence Samples", 
+    "%TopRight",  "% TopLeft", "%BottomRight", "%BottomLeft"] 
 
-    features = eye+head
+    features = txteye+head
 
 
 
@@ -356,9 +357,13 @@ def feature_extraction(data, labs, outdir, et=.25):
                 f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
                 f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
                 f.append((classified==9).sum())                                                                                         #Number of poor confidence values
-                f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
-                f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
+                #f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
+                #f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
                 
+                f.append((classified[classified==0].shape[0] / len(classified)))
+                f.append((classified[classified==1].shape[0] / len(classified)))  #Percent top/bottom
+                f.append((classified[classified==2].shape[0] / len(classified)))
+                f.append((classified[classified==3].shape[0] / len(classified)))
 
                 #Head Tracking
                 
@@ -406,28 +411,38 @@ def feature_extraction(data, labs, outdir, et=.25):
 def gen_figs(data,outdir):
     #Seizure vs Technology
     (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
+    l = np.array(lab)
+    print(l[l==0].shape[0])
     try: separate(feat, lab, outdir, title="Seizure vs Technology", n=0)
     except Exception as e: print("Failed Seizure vs Technology!")
 
     #Seizure vs Eating
     (feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
+    l = np.array(lab)
+    print(l[l==0].shape[0])
     try: separate(feat, lab, outdir, title="Seizure vs Eating", n=1)
     except Exception as e: print("Failed Seizure vs Eating!")
     #Seizure vs Coversation
     (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
+    l = np.array(lab)
+    print(l[l==0].shape[0])
     try: separate(feat, lab, outdir, title="Seizure vs Conversation", n=2)
     except Exception as e: print("Failed Seizure vs Conversation!")
 
     #Seizure vs Non-Seizure
     (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/')
+    l = np.array(lab)
+    print(l[l==1].shape[0])
     try:separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
     except Exception as e: print("Failed Seizure vs Non-Seizure!")
 
 
 if __name__ == "__main__":
-    #data = load_all('experiment/')
-    outdir = "figures/3x3Analysis/Subs/"
+    data = load_all('experiment/')
 
+    outdir = "figures/2x2Analysis/"
+    gen_figs(data, outdir)
+    """
     for j in range(1,9):
         data = [ [], [], [], []] 
         read = load('experiment/subj'+str(j)+"/")
@@ -446,7 +461,7 @@ if __name__ == "__main__":
         if not os.path.isdir(path+"Conversation/"): os.makedirs(path + "Conversation/", exist_ok=True)
         if not os.path.isdir(path+"Non-Seizure/"): os.makedirs(path + "Non-Seizure/", exist_ok=True)
         gen_figs(data, path)
-
+    """
     
     
     #Vary Threshold
