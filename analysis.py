@@ -18,6 +18,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split, cross_val_score, ShuffleSplit
 from sklearn import metrics
 from sklearn.metrics import f1_score
+from process_raw import extract_ncent, process_all
 
 def class_to_color(c):
     if   c==0: return 'red'
@@ -301,10 +302,11 @@ def feature_table(coef, outdir, lab):
     "Range Gyroscope"]
 
     txteye = ["Average Eye Classification", "# Unique Eye Classificaitons", "# Classifcation Changes", "# Low-Confidence Samples", 
-    "%TopRight",  "% TopLeft", "%BottomRight", "%BottomLeft"] 
+    "%TopRight",  "%TopLeft", "%BottomRight", "BottomLeft"] 
 
-    features = txteye+head
-
+    features = eye
+    print(len(features))
+    print(len(coef))
 
 
     plt.figure()
@@ -326,7 +328,7 @@ def feature_table(coef, outdir, lab):
 
 
 
-def feature_extraction(data, labs, outdir, et=.25):
+def feature_extraction(data, labs, outdir, grid=3, et=.25):
     """
     Extract features from raw data
 
@@ -339,6 +341,7 @@ def feature_extraction(data, labs, outdir, et=.25):
     feats = []
     labels = []
     epoch_thresh = et
+    lc = grid*grid
 
     for (run, l) in zip(data, labs):
         n = math.floor(len(run)/(epoch_size/2))
@@ -349,24 +352,41 @@ def feature_extraction(data, labs, outdir, et=.25):
 
             splice = np.array(run[(int)((i-1)*(epoch_size/2)):(int)((i*epoch_size/2)+epoch_size/2)])
             classified = splice[:,0]
-            if (classified[classified==9].shape[0] / len(classified)) <= epoch_thresh:
+            if (classified[classified==lc].shape[0] / len(classified)) <= epoch_thresh:
                 #Eye Tracking
                 
                 f.append(statistics.mean(classified))   
                 #f.append(statistics.stdev(classified))                                                                                #Average class
                 f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
                 f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
-                f.append((classified==9).sum())                                                                                         #Number of poor confidence values
+                f.append((classified==lc).sum()) 
+                
+                if grid > 2:                                                                                        #Number of poor confidence values
+                    #f.append((classified[classified==i].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
+                    t = 0
+                    for i in range(0,grid):
+                        t += classified[classified==i].shape[0] + classified[classified==grid*grid-grid+i].shape[0]
+                    f.append(t/len(classified))
+                    t=0
+                    for i in range(0,grid):
+                        t += classified[classified==i*(grid)].shape[0] + classified[classified==i*(grid)+(grid-1)].shape[0]
+                    f.append(t/len(classified))
+                
+                
                 #f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
                 #f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
                 
-                f.append((classified[classified==0].shape[0] / len(classified)))
-                f.append((classified[classified==1].shape[0] / len(classified)))  #Percent top/bottom
-                f.append((classified[classified==2].shape[0] / len(classified)))
-                f.append((classified[classified==3].shape[0] / len(classified)))
+                
+                
+                # f.append((classified[classified==0].shape[0] / len(classified)))
+                # f.append((classified[classified==1].shape[0] / len(classified)))  #Percent top/bottom
+                # f.append((classified[classified==2].shape[0] / len(classified)))
+                # f.append((classified[classified==3].shape[0] / len(classified)))
+                #f.append(((classified[classified==0].shape[0] + classified[classified==2].shape[0]) / len(classified))) 
+                
 
                 #Head Tracking
-                
+                """
                 accel_mag = [math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]
                 gyro_mag = [math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]
 
@@ -393,7 +413,7 @@ def feature_extraction(data, labs, outdir, et=.25):
                 
                 #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
                 #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
-                
+                """
                 feats.append(f)
                 num_sample+=1
         
@@ -408,65 +428,37 @@ def feature_extraction(data, labs, outdir, et=.25):
 
     return (feats, labels)
 
-def gen_figs(data,outdir):
+def gen_figs(data,outdir,grid=3):
     #Seizure vs Technology
-    (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/')
+    (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/',grid)
     l = np.array(lab)
     print(l[l==0].shape[0])
     try: separate(feat, lab, outdir, title="Seizure vs Technology", n=0)
     except Exception as e: print("Failed Seizure vs Technology!")
 
     #Seizure vs Eating
-    (feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/')
+    (feat, lab) = feature_extraction([data[0], data[2]], [1,0], 'experiment/features/',grid)
     l = np.array(lab)
     print(l[l==0].shape[0])
     try: separate(feat, lab, outdir, title="Seizure vs Eating", n=1)
     except Exception as e: print("Failed Seizure vs Eating!")
     #Seizure vs Coversation
-    (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/')
+    (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/',grid)
     l = np.array(lab)
     print(l[l==0].shape[0])
     try: separate(feat, lab, outdir, title="Seizure vs Conversation", n=2)
     except Exception as e: print("Failed Seizure vs Conversation!")
 
     #Seizure vs Non-Seizure
-    (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/')
+    (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/',grid)
     l = np.array(lab)
     print(l[l==1].shape[0])
     try:separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
     except Exception as e: print("Failed Seizure vs Non-Seizure!")
 
-
-if __name__ == "__main__":
-    data = load_all('experiment/')
-
-    outdir = "figures/2x2Analysis/"
-    gen_figs(data, outdir)
-    """
-    for j in range(1,9):
-        data = [ [], [], [], []] 
-        read = load('experiment/subj'+str(j)+"/")
-        for i in range(len(read)):
-            if i > 0:
-                data[i-1].extend(read[i])
-            else:
-                data[i].extend(read[i])
-        path = outdir+"subj"+str(j)+"/"
-        if not os.path.isdir(path):
-            print(path)
-            os.makedirs(path, exist_ok=True)
-
-        if not os.path.isdir(path+"Technology/"): os.makedirs(path + "Technology/", exist_ok=True)
-        if not os.path.isdir(path+"Eating/"): os.makedirs(path + "Eating/", exist_ok=True)
-        if not os.path.isdir(path+"Conversation/"): os.makedirs(path + "Conversation/", exist_ok=True)
-        if not os.path.isdir(path+"Non-Seizure/"): os.makedirs(path + "Non-Seizure/", exist_ok=True)
-        gen_figs(data, path)
-    """
-    
-    
+def threshold_scan(data):
     #Vary Threshold
 
-    """
     best = [0,0]
     aucs = []
     f1s = []
@@ -503,4 +495,52 @@ if __name__ == "__main__":
     
     print("Best threshold is " + str(best[0]) + " at " + str(best[1]))
     plt.show()
+    
+
+def gran(experdir):
+    for n in range(3,11):
+        extract_ncent(experdir, n)
+        data = process_all("experiment/", centroid="centroids_" + str(n) + ".csv", grid=n)
+        data = load_all('experiment/')
+        outdir = "figures/NxN/granular_nohead/"+str(n)+"/"
+        gen_figs(data, outdir, n)
+
+
+
+if __name__ == "__main__":
+    gran("experiment/")
+    # extract_ncent("experiment/", 2)
+    # data = process_all("experiment/", centroid="centroids_2.csv", grid=2)
+    # data = load_all('experiment/')
+    # outdir = "figures/NxN/granular/"+str(2)+"/"
+    # gen_figs(data, outdir, 2)
+    
+    
+    #data = load_all('experiment/')
+
+    #outdir = "figures/NxN/granular/3/"
+    #gen_figs(data, outdir)
+    
+
     """
+    for j in range(1,9):
+        data = [ [], [], [], []] 
+        read = load('experiment/subj'+str(j)+"/")
+        for i in range(len(read)):
+            if i > 0:
+                data[i-1].extend(read[i])
+            else:
+                data[i].extend(read[i])
+        path = outdir+"subj"+str(j)+"/"
+        if not os.path.isdir(path):
+            print(path)
+            os.makedirs(path, exist_ok=True)
+
+        if not os.path.isdir(path+"Technology/"): os.makedirs(path + "Technology/", exist_ok=True)
+        if not os.path.isdir(path+"Eating/"): os.makedirs(path + "Eating/", exist_ok=True)
+        if not os.path.isdir(path+"Conversation/"): os.makedirs(path + "Conversation/", exist_ok=True)
+        if not os.path.isdir(path+"Non-Seizure/"): os.makedirs(path + "Non-Seizure/", exist_ok=True)
+        gen_figs(data, path)
+    """
+    
+    

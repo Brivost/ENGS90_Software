@@ -5,10 +5,96 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import statistics
-from analysis import class_to_color, separate
+from itertools import product
+#from analysis import class_to_color, separate
 from scipy.spatial import distance
 
-def classify(centroids, data, conf_thresh):
+def extract_hvcents(experdir):
+    """
+    Using 3x3 centroids, write out 1x3 and 3x1 centroids
+    """
+
+    print("Writing horizontal and vertical centroid files to the experiment directory")
+    for dirName, subdirList, fileList in os.walk(experdir):    
+        if "subj" in dirName:
+            print(dirName)
+            centroids = load_centroids(dirName + "/centroids_0.csv")
+            with open(dirName + "/centroids_hor.csv", 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile, delimiter=',')
+                for point in [centroids[3],centroids[4],centroids[5]]:
+                    writer.writerow(point)
+            with open(dirName + "/centroids_ver.csv", 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile, delimiter=',')
+                for point in [centroids[1],centroids[4],centroids[7]]:
+                    writer.writerow(point)
+
+
+def calc_ncent(centroids, n):
+
+    diag_x = [ [centroids[0][0] , centroids[4][0], centroids[8][0]], [centroids[2][0], centroids[4][0], centroids[6][0]] ]
+    diag_y = [ [centroids[0][1] , centroids[4][1], centroids[8][1]], [centroids[2][1], centroids[4][1], centroids[6][1]] ]
+
+    (m0, b0) = np.polyfit(diag_x[0], diag_y[0], 1)
+    (m1, b1) = np.polyfit(diag_x[1], diag_y[1], 1)
+
+    border_points = []
+    for i in [0,2,6,8]:
+        x_val = centroids[i][0] - centroids[4][0] + centroids[i][0]
+
+        if i==0 or i==8: border_points.append((x_val, m0*x_val+b0))
+        else: border_points.append((x_val, m1*x_val+b1))
+
+    x = np.linspace(min(centroids[0][0], centroids[3][0], centroids[6][0]), max(centroids[2][0], centroids[5][0], centroids[8][0]))
+
+
+    (m_y,b_y) = np.polyfit([border_points[3][0], border_points[2][0]], [border_points[3][1], border_points[2][1]], 1) #y_offset
+    (m_y2,b_y2) = np.polyfit([border_points[1][0], border_points[0][0]], [border_points[1][1], border_points[0][1]], 1)
+    (m_x, b_x) = np.polyfit([border_points[3][1], border_points[1][1]], [border_points[3][0], border_points[1][0]], 1) #x_offset
+    (m_x2, b_x2) = np.polyfit([border_points[2][1], border_points[0][1]], [border_points[2][0], border_points[0][0]], 1) #x_offset
+
+    n_x = np.linspace(border_points[3][0], border_points[2][0], n+2)
+    n_y = np.linspace(border_points[3][1], border_points[1][1], n+2)
+   
+    n_x = np.delete(n_x, -1)
+    n_y = np.delete(n_y, -1)
+    n_x = np.delete(n_x, 0)
+    n_y = np.delete(n_y, 0)
+
+    n_cents = []
+    # for ny, nx in product(reversed(n_y),n_x):
+    #     x_offset = (ny*m_x+b_x-border_points[3][0] + ny*m_x2+b_x2-border_points[2][0])/2
+    #     y_offset = (nx*m_y+b_y-border_points[3][1] + nx*m_y2+b_y2-border_points[1][1])/2
+
+    #     n_cents.append((nx+x_offset, ny+y_offset))
+    for nx, ny in product(n_x,n_y):
+        x_offset = (ny*m_x+b_x-border_points[3][0] + ny*m_x2+b_x2-border_points[2][0])/2
+        y_offset = (nx*m_y+b_y-border_points[3][1] + nx*m_y2+b_y2-border_points[1][1])/2
+
+        n_cents.append((nx+x_offset, ny+y_offset))
+
+    reorder_ncent = []
+    for j in reversed(range(0,n)):
+        for i in reversed(range(0,n)):
+            reorder_ncent.append(n_cents[i*n+j])
+
+
+    return reorder_ncent
+
+def extract_ncent(experdir, n):
+    print("Writing horizontal and vertical centroid files to the experiment directory")
+    for dirName, subdirList, fileList in os.walk(experdir):    
+        if "subj" in dirName:
+            print(dirName)
+            centroids = calc_ncent(load_centroids(dirName + "/centroids_0.csv"),n)
+            with open(dirName + "/centroids_" + str(n) + ".csv", 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile, delimiter=',')
+                for point in centroids:
+                    writer.writerow(point)
+ 
+
+
+
+def classify(centroids, data, n):
     """ Classifies pupil x,y position in data matrix into grid number
         Classification is simply determined by nearest calibrated point
         Returns data vector with classified eye position appended
@@ -18,9 +104,9 @@ def classify(centroids, data, conf_thresh):
         
     """
     labeled = []
-    
+    conf_thresh = 0
     for sample in data:
-        value = 9 #Classify as 9 if the sample does not meet the confidence threshold
+        value = n*n #Classify as 9 if the sample does not meet the confidence threshold
         if sample[2] >= conf_thresh: 
             distances = [math.sqrt((sample[0] - point[0])**2 + (sample[1] - point[1])**2) for point in centroids]
             value = distances.index(min(distances))
@@ -28,20 +114,20 @@ def classify(centroids, data, conf_thresh):
         
     return labeled
 
-def process_all(experdir, centroid="centroids_0.csv", max_feat=False):
+def process_all(experdir, centroid="centroids_0.csv", grid=3,max_feat=False):
+    
     n = 0.0
     total = 0.0
     for dirName, subdirList, fileList in os.walk(experdir):
         if "subj" in dirName:
-            (n, total) = process(dirName + "/", centroid, dirName + "/", n, total, max_feat)
+            (n, total) = process(dirName + "/", centroid, dirName + "/", n, total, grid, max_feat)
     print("Low Confidence: " + str(n / total))
 
 
-def process(rawdir, cent, outdir, n,t, max_feat=False):
+def process(rawdir, cent, outdir, n,t, grid, max_feat=False):
 
     data = []
     centroids = []
-    conf_thresh = 0
     curr = n
     total = t
 
@@ -50,7 +136,7 @@ def process(rawdir, cent, outdir, n,t, max_feat=False):
         reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
         for row in reader:
             centroids.append([float(x) for x in row[0].split(',')])
-        
+    
     
     for file in os.listdir(rawdir):
 
@@ -62,14 +148,14 @@ def process(rawdir, cent, outdir, n,t, max_feat=False):
                 for row in reader:
                     read.append([float(x) for x in row[0].split(',')])
                     
-            read = classify(centroids, np.array(read).astype(np.float), conf_thresh)
+            read = classify(centroids, np.array(read).astype(np.float), grid)
             try:
                 r = np.array(read)[:,0]
             except IndexError:
                 pass
             
             
-            curr += r[r==9].shape[0]
+            curr += r[r==grid*grid].shape[0]
             total+=len(read)
             data.append(read)
             
@@ -336,8 +422,12 @@ def full_feature_extraction(data, labs, outdir, et=.25, c=False):
 
 
 
+
+
 if __name__ == "__main__":
-    data = process_all("experiment/", centroid="centroids_2x2.csv")
+    #extract_hvcents("experiment/")
+    extract_ncent("experiment", 3)
+    data = process_all("experiment/", centroid="centroids_3.csv")
     
     #data = load_all("experiment/", c=False,cent='/centroids_2x2.csv')
     #outdir = "figures/3x3Analysis/FullFeature_woClass/"

@@ -8,8 +8,9 @@ import zmq
 
 from scipy.spatial import distance
 from graphics import *
-from process_raw import classify
+from process_raw import classify, load_centroids
 from analysis import class_to_color
+from itertools import product
 import tkinter as tk
 import numpy as np
 import matplotlib.pyplot as plt
@@ -343,3 +344,67 @@ def validate(centroids, window, n=3):
         
         if window.getKey() != 'r':
             finished = True
+
+def plot_centroids(centroids, n=3):
+    for (x,y) in centroids:
+        plt.plot(x,y,'*', color='green', label="Original")
+    
+    diag_x = [ [centroids[0][0] , centroids[4][0], centroids[8][0]], [centroids[2][0], centroids[4][0], centroids[6][0]] ]
+    diag_y = [ [centroids[0][1] , centroids[4][1], centroids[8][1]], [centroids[2][1], centroids[4][1], centroids[6][1]] ]
+
+    (m0, b0) = np.polyfit(diag_x[0], diag_y[0], 1)
+    (m1, b1) = np.polyfit(diag_x[1], diag_y[1], 1)
+
+    border_points = []
+    for i in [0,2,6,8]:
+        x_val = centroids[i][0] - centroids[4][0] + centroids[i][0]
+
+        if i==0 or i==8: border_points.append((x_val, m0*x_val+b0))
+        else: border_points.append((x_val, m1*x_val+b1))
+
+    x = np.linspace(min(centroids[0][0], centroids[3][0], centroids[6][0]), max(centroids[2][0], centroids[5][0], centroids[8][0]))
+    #plt.plot(x,m0*x+b0)
+    #plt.plot(x,m1*x+b1)
+
+    # for (x,y) in border_points:
+    #     plt.plot(x,y,'*', color='black')
+
+
+    (m_y,b_y) = np.polyfit([border_points[3][0], border_points[2][0]], [border_points[3][1], border_points[2][1]], 1) #y_offset
+    (m_y2,b_y2) = np.polyfit([border_points[1][0], border_points[0][0]], [border_points[1][1], border_points[0][1]], 1)
+    (m_x, b_x) = np.polyfit([border_points[3][1], border_points[1][1]], [border_points[3][0], border_points[1][0]], 1) #x_offset
+    (m_x2, b_x2) = np.polyfit([border_points[2][1], border_points[0][1]], [border_points[2][0], border_points[0][0]], 1) #x_offset
+
+    n_x = np.linspace(border_points[3][0], border_points[2][0], n+2)
+    n_y = np.linspace(border_points[3][1], border_points[1][1], n+2)
+   
+    n_x = np.delete(n_x, -1)
+    n_y = np.delete(n_y, -1)
+    n_x = np.delete(n_x, 0)
+    n_y = np.delete(n_y, 0)
+
+
+    #n_cents = [(nx + ny*m_x, ny + ((nx*m_y + nx*m_y2)/2)) for (nx, ny) in product(n_x,n_y)]
+    #n_cents = [(nx + (ny-border_points[3][1])*m_x, ny + nx*m_y) for (nx, ny) in product(n_x,n_y)]
+    n_cents = []
+    for nx, ny in product(n_x,n_y):
+        x_offset = (ny*m_x+b_x-border_points[3][0] + ny*m_x2+b_x2-border_points[2][0])/2
+        y_offset = (nx*m_y+b_y-border_points[3][1] + nx*m_y2+b_y2-border_points[1][1])/2
+
+        n_cents.append((nx+x_offset, ny+y_offset))
+
+    for (x,y) in n_cents:
+        plt.plot(x,y,'*', color='purple', label="Recalibrated")
+
+
+    
+    # for (x,y) in load_centroids("experiment/subj4/centroids_2x2.csv"):
+    #     plt.plot(x,y,'*', color='red', label="2x2")
+    
+    
+    #plt.show()
+    #plt.savefig("figures/NxN/10x10.png", dpi=600)
+
+
+if __name__ == "__main__":
+    plot_centroids(load_centroids("experiment/subj4/centroids_0.csv"), n=10)
