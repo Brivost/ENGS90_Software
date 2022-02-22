@@ -13,6 +13,7 @@ import statistics
 import copy
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.offsetbox import AnchoredText
 from scipy.fft import fft, fftfreq
 from scipy.stats import norm
 from scipy.spatial import distance
@@ -47,6 +48,7 @@ def noise(data, centroids=None, noise_level: float=0.1, plot=True): # used to be
     #Find x and y standard deviations
     x_stdev = statistics.stdev(x_data)
     y_stdev = statistics.stdev(y_data)
+    average_stdev = statistics.mean([x_stdev, y_stdev])
 
     for original_data_run in data:
 
@@ -127,7 +129,7 @@ def noise(data, centroids=None, noise_level: float=0.1, plot=True): # used to be
     # Average percent correct
     average_percent_correct = np.mean(percent_correct_list)
 
-    return(original_data, noisy_data, average_noise_variance, average_percent_correct)
+    return(original_data, noisy_data, average_noise_variance, average_percent_correct, average_stdev)
 
 def load_all(experdir):
     """
@@ -355,24 +357,54 @@ def separability_vs_noise(original_data, centroids, min_noise, max_noise, noise_
     average_noise_variance_list = []
 
     for noise_scale in noise_list:
-        (original_data2, noisy_data, average_noise_variance, percent_correct) = noise(original_data, centroids=centroids, noise_level=noise_scale, plot=False)
+        (original_data2, noisy_data, average_noise_variance, percent_correct, average_stdev) = noise(original_data, centroids=centroids, noise_level=noise_scale, plot=False)
 
         (feat,lab) = eye_tracking_feature_extraction(noisy_data, [1,0,0,0], "single_noisy_experiment/features1/", c = True)
         (auroc, f1) = separate(feat, lab)
         print(f"current f1: {f1}")
 
-        auroc_list = np.append(auroc_list, auroc)
-        f1_list = np.append(f1_list, f1)
-        average_noise_variance_list = np.append(average_noise_variance_list, average_noise_variance)
-        percent_correct_list = np.append(percent_correct_list, percent_correct)
+        auroc_list.append(auroc)
+        f1_list.append(f1)
+        average_noise_variance_list.append(average_noise_variance)
+        percent_correct_list.append(percent_correct)
 
-    for auroc, f1, percent_correct, noise_scale in zip(auroc_list, f1_list, percent_correct_list, noise_list):
-        plt.plot(noise_scale, f1, marker = 'o', color='blue')
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+
+    ax1.plot(noise_list, f1_list, color='blue', marker='o')
+    ax2.plot(noise_list, percent_correct_list, color='red', marker='o')
+
+    ax1.set_title("Noise vs F1, Eye Data Only")
+    ax1.set_xlabel("Noise (amount of standard deviation)")
+    ax1.set_ylabel("F1", color='blue')
+    ax2.set_ylabel("Percent Accuracy", color='red')
+
+    at = AnchoredText(
+    f"σ={average_stdev:.3f}", prop=dict(size=15), frameon=True, loc='lower left')
+    at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+    ax1.add_artist(at)
+
+    fig, ax1 = plt.subplots()
+    ax2 = ax1.twinx()
+    
+    ax1.plot(noise_list, auroc_list, color='blue', marker='o')
+    ax2.plot(noise_list, percent_correct_list, color='red', marker='o')
+
+    ax1.set_title("Noise vs AUROC, Eye Data Only")
+    ax1.set_xlabel("Noise (amount of standard deviation)")
+    ax1.set_ylabel("AUROC", color='blue')
+    ax2.set_ylabel("Percent Accuracy", color='red')
+
+    at = AnchoredText(
+    f"σ={average_stdev:.3f}", prop=dict(size=15), frameon=True, loc='lower left')
+    at.patch.set_boxstyle("round,pad=0.,rounding_size=0.2")
+    ax1.add_artist(at)
 
     print(f"auroc: {auroc_list}")
     print(f"f1: {f1_list}")
     print(f"percent correct: {percent_correct_list}")
     print(f"noise: {noise_list}")
+    print(f"average noise variance: {average_noise_variance_list}")
 
     plt.show()
 
@@ -423,9 +455,9 @@ if __name__ == "__main__":
     #SINGLE SUBJECT DATA VARYING NOISY
     cleaned_original_data = load_all_9("single_noisy_experiment/", c = True, cent='/centroids_0.csv')
     original_untouched_data = load_all("single_noisy_experiment/")
-    centroids = load_centroids("single_noisy_experiment/subj1/centroids_0.csv")
+    centroids = load_centroids("single_noisy_experiment/subj3/centroids_0.csv")
 
-    separability_vs_noise(original_untouched_data, centroids, 0, 2, 0.1)
+    separability_vs_noise(original_untouched_data, centroids, 0, 5, 0.2)
 
 
 
