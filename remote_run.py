@@ -1,6 +1,5 @@
 # To run this script, you need to install: 
 #       `pip install tk`
-#       `pip install zmq msgpack==0.5.6`
 #       `pip install matplotlib` 
 #       `pip install scipy`
 #       `pip install pyserial`
@@ -14,7 +13,7 @@ import serial
 import math
 import time
 import os
-import zmq
+
 from analysis import class_to_color
 
 from figure_gen import validate, trace_line
@@ -27,6 +26,9 @@ from cvd_pupillometry.pyplr.pupil import PupilCore
 from cvd_pupillometry.pyplr.utils import unpack_data_pandas
 
 def calibrate(outdir, n, two=True):
+    """
+    Run calibration protocol. Calibrate 3x3 (mounted), 2x2 (mounted) and 3x3 (unmounted) centroids
+    """
     #Set constants   
     root = tk.Tk()
     screen_width = root.winfo_screenwidth()
@@ -109,7 +111,7 @@ def calibrate(outdir, n, two=True):
             trimmed2.append(([np.array(grid[0])[to_trim],np.array(grid[1])[to_trim], np.array(grid[2])[to_trim]]))
         
         calibration = trimmed2
-        
+        # Plot results of calibration
         for point in calibration:
             plt.plot(point[0], point[1], '.')
         
@@ -125,7 +127,7 @@ def calibrate(outdir, n, two=True):
         sub = Text(Point(screen_width/2,screen_height/3+75), "Press 'r' to recalibrate, 's' to save centroids and record a new set, or any other key to exit").draw(win)
         sub.setSize(20)
         
-
+    #Allow user to recalibrate centroids if insufficient
         key = win.getKey()
         if key == 'r':
             finished = False
@@ -196,7 +198,6 @@ def record_data(outdir, port, centroids):
     """
     
     #Connect to Arduino. Code must be flashed to Arduino prior to running this function
-    #port = '/dev/cu.usbmodem1101'
     ard = serial.Serial(port,9600) 
     time.sleep(2)
 
@@ -262,15 +263,11 @@ def record_data(outdir, port, centroids):
                 data[6].append(accel[3])
                 data[7].append(accel[4])
                 data[8].append(accel[5])
-            """
-            try:
-                data = classify(centroids, np.array(data).astype(np.float).T, conf_thresh) 
-            except ValueError:
-                print("Failed case!")
-            """
+
             with open(outdir + str(run_num) + ".csv", 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile, delimiter=',')
                 for line in np.array(data).T:
+                    #Error handling, ocassionally Arduino will send non-parseable data
                     try:
                         l = line.astype(np.float)
                         writer.writerow(line)
