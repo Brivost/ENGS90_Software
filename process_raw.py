@@ -1,20 +1,19 @@
-
 import csv
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import os
 import statistics
-from itertools import product
+from itertools import product,combinations
 #from analysis import class_to_color, separate
 from scipy.spatial import distance
+import argparse
 
 def extract_hvcents(experdir):
     """
     Using 3x3 centroids, write out 1x3 and 3x1 centroids
     """
-
-    print("Writing horizontal and vertical centroid files to the experiment directory")
     for dirName, subdirList, fileList in os.walk(experdir):    
         if "subj" in dirName:
             print(dirName)
@@ -30,13 +29,19 @@ def extract_hvcents(experdir):
 
 
 def calc_ncent(centroids, n):
+    """
+    Compute an NxN centroid grid from a 3x3 centroid grid
 
+    centroids: list of centroids corresponding to a 3x3 grid
+    """
     diag_x = [ [centroids[0][0] , centroids[4][0], centroids[8][0]], [centroids[2][0], centroids[4][0], centroids[6][0]] ]
     diag_y = [ [centroids[0][1] , centroids[4][1], centroids[8][1]], [centroids[2][1], centroids[4][1], centroids[6][1]] ]
 
+    #Fit lines along the diagonals of the grid
     (m0, b0) = np.polyfit(diag_x[0], diag_y[0], 1)
     (m1, b1) = np.polyfit(diag_x[1], diag_y[1], 1)
 
+    #Compute the four corner points defining the grid
     border_points = []
     for i in [0,2,6,8]:
         x_val = centroids[i][0] - centroids[4][0] + centroids[i][0]
@@ -46,32 +51,32 @@ def calc_ncent(centroids, n):
 
     x = np.linspace(min(centroids[0][0], centroids[3][0], centroids[6][0]), max(centroids[2][0], centroids[5][0], centroids[8][0]))
 
-
+    #fit lines along the edges of the border
     (m_y,b_y) = np.polyfit([border_points[3][0], border_points[2][0]], [border_points[3][1], border_points[2][1]], 1) #y_offset
     (m_y2,b_y2) = np.polyfit([border_points[1][0], border_points[0][0]], [border_points[1][1], border_points[0][1]], 1)
     (m_x, b_x) = np.polyfit([border_points[3][1], border_points[1][1]], [border_points[3][0], border_points[1][0]], 1) #x_offset
     (m_x2, b_x2) = np.polyfit([border_points[2][1], border_points[0][1]], [border_points[2][0], border_points[0][0]], 1) #x_offset
 
+    #evenly space N points along the border lines
     n_x = np.linspace(border_points[3][0], border_points[2][0], n+2)
     n_y = np.linspace(border_points[3][1], border_points[1][1], n+2)
    
+   #trim off the end points, corresponding to the edge of the grid
     n_x = np.delete(n_x, -1)
     n_y = np.delete(n_y, -1)
     n_x = np.delete(n_x, 0)
     n_y = np.delete(n_y, 0)
 
     n_cents = []
-    # for ny, nx in product(reversed(n_y),n_x):
-    #     x_offset = (ny*m_x+b_x-border_points[3][0] + ny*m_x2+b_x2-border_points[2][0])/2
-    #     y_offset = (nx*m_y+b_y-border_points[3][1] + nx*m_y2+b_y2-border_points[1][1])/2
-
-    #     n_cents.append((nx+x_offset, ny+y_offset))
+    
+    #space points with averaged offset from border liens
     for nx, ny in product(n_x,n_y):
         x_offset = (ny*m_x+b_x-border_points[3][0] + ny*m_x2+b_x2-border_points[2][0])/2
         y_offset = (nx*m_y+b_y-border_points[3][1] + nx*m_y2+b_y2-border_points[1][1])/2
 
         n_cents.append((nx+x_offset, ny+y_offset))
 
+    #reorder the centroids into the same way the 3x3 were ordered
     reorder_ncent = []
     for j in reversed(range(0,n)):
         for i in reversed(range(0,n)):
@@ -81,7 +86,9 @@ def calc_ncent(centroids, n):
     return reorder_ncent
 
 def extract_ncent(experdir, n):
-    print("Writing horizontal and vertical centroid files to the experiment directory")
+    """
+    Write out a csv file containing coordinates for an NxN centroid grid
+    """
     for dirName, subdirList, fileList in os.walk(experdir):    
         if "subj" in dirName:
             print(dirName)
@@ -94,7 +101,7 @@ def extract_ncent(experdir, n):
 
 
 
-def classify(centroids, data, n):
+def classify(centroids, data, n, conf_t=0):
     """ Classifies pupil x,y position in data matrix into grid number
         Classification is simply determined by nearest calibrated point
         Returns data vector with classified eye position appended
@@ -104,7 +111,7 @@ def classify(centroids, data, n):
         
     """
     labeled = []
-    conf_thresh = 0
+    conf_thresh = conf_t
     for sample in data:
         value = n*n #Classify as 9 if the sample does not meet the confidence threshold
         if sample[2] >= conf_thresh: 
@@ -114,24 +121,30 @@ def classify(centroids, data, n):
         
     return labeled
 
-def process_all(experdir, centroid="centroids_0.csv", grid=3,max_feat=False):
-    
+def process_all(experdir, centroid="centroids_0.csv", grid=3,limit=None,max_feat=False,conf_t=0):
+    """
+    Write out .csv files with classified eye position
+    Calculate number of low confidence samples in the dataset
+    """
     n = 0.0
     total = 0.0
     for dirName, subdirList, fileList in os.walk(experdir):
         if "subj" in dirName:
-            (n, total) = process(dirName + "/", centroid, dirName + "/", n, total, grid, max_feat)
+            #(n, total) = process(dirName + "/", centroid, dirName + "/", n, total, grid, max_feat)
+            (n,total) = fill_gaps(dirName + "/", centroid, dirName + "/", n, total, grid, limit=limit,conf_t=conf_t)
     print("Low Confidence: " + str(n / total))
 
 
 def process(rawdir, cent, outdir, n,t, grid, max_feat=False):
-
+    """
+    Process .csv files in subject data directory, classifying eye position and writing out a new .csv
+    """
     data = []
     centroids = []
     curr = n
     total = t
 
-
+    #open specified centroid file
     with open(rawdir + cent, newline='') as csvfile:
         reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
         for row in reader:
@@ -139,7 +152,7 @@ def process(rawdir, cent, outdir, n,t, grid, max_feat=False):
     
     
     for file in os.listdir(rawdir):
-
+        #Read in proper data file, process line by line
         filename = os.fsdecode(file)
         if filename.endswith(".csv") and "centroid" not in filename and "data" not in filename:   #Error handling to dodge hidden files and subdirectories
             read = []
@@ -154,11 +167,12 @@ def process(rawdir, cent, outdir, n,t, grid, max_feat=False):
             except IndexError:
                 pass
             
-            
+            #Keep track of number of low-confidence samples
             curr += r[r==grid*grid].shape[0]
             total+=len(read)
             data.append(read)
             
+            #Write out processed data file
             with open(outdir + "data_" + filename, 'w', newline='') as csvfile:
                 writer = csv.writer(csvfile, delimiter=',')
                 for sample in read:
@@ -168,9 +182,79 @@ def process(rawdir, cent, outdir, n,t, grid, max_feat=False):
 
     return (curr, total)
 
+
+def fill_gaps(rawdir, cent, outdir, n,t, grid, limit=None, max_feat=False,conf_t=None):
+    """
+    Similar to process, but include K-Fill Data Imputation to reduce low confidence samples
+    """
+    data = []
+    centroids = []
+    conf_thresh = 0
+    curr = n
+    total = t
+
+    #Open specified centroid file
+    with open(rawdir + cent, newline='') as csvfile:
+        reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+        for row in reader:
+            centroids.append([float(x) for x in row[0].split(',')])
+    
+    for file in os.listdir(rawdir):
+        filename = os.fsdecode(file)
+        
+        if filename.endswith(".csv") and "data" not in filename and "centroid" not in filename and "filled" not in filename:   #Error handling to dodge hidden files and subdirectories
+            print(filename)
+            read = []
+            #Read in samples
+            with open(rawdir + '/' + filename, newline='') as csvfile:
+                reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+                for row in reader:
+                    read.append([float(x) for x in row[0].split(',')])
+            
+            #Use pandas to perform K-Fill data imputation
+            read = np.array(read).T      
+            x = pd.Series(read[0])
+            x = x.interpolate(method='nearest',limit_direction='both', limit=limit)
+
+            y = pd.Series(read[1])
+            y = y.interpolate(method='nearest',limit_direction='both', limit=limit)
+            
+            conf = pd.Series(read[2])
+            conf = conf.interpolate(method='nearest',limit_direction='both', limit=limit)           
+
+            read = np.array([x.tolist(),y.tolist(),conf.tolist(),read[3],read[4],read[5],read[6],read[7],read[8]]).T
+
+            #Classify with imputation
+            read = classify(centroids, read.astype(np.float), grid, conf_t)
+            
+
+            try:
+                r = np.array(read)[:,0]
+            except IndexError:
+                pass
+            
+            #Keep track of low-confidence samples
+            curr += r[r==grid*grid].shape[0]
+            total+=len(read)
+            data.append(read)
+            
+            #Write out classified file
+            with open(outdir + "data_" + filename, 'w', newline='') as csvfile:
+                writer = csv.writer(csvfile, delimiter=',')
+                for sample in read:
+                    if not max_feat: writer.writerow([sample[i] for i in [0,4,5,6,7,8,9]])
+                    else: writer.writerow(sample)
+                
+
+    return (curr, total)
+            
+    
+ 
 def load_centroids(cent):
     """
-    Load in centroids 
+    Load in centroids
+
+    cent: specified pathname to centroids
     """
     centroids = []
     with open(cent, newline='') as csvfile:
@@ -179,65 +263,6 @@ def load_centroids(cent):
             centroids.append([float(x) for x in row[0].split(',')])
     return centroids
 
-def plot_data(datadir, cent, lines=False):
-    """
-    Plot all data provided onto multiple subplots, optionally plot the calibrated centroids and grid divisions
-
-    data: List of lists, each sublist will be plotted on its own subfigure
-    centroids: List of lists, calibrated centroid positions. If provided, will plot mean centroid positions along with grid delineations
-
-    """
-
-    centroids = load_centroids(cent)
-
-    data = []
-    conf_thresh = .75
-
-    for file in os.listdir(datadir):
-        filename = os.fsdecode(file)
-        
-        if filename.endswith(".csv") and "data" not in filename and "centroids" not in filename:   #Error handling to dodge hidden files and subdirectories
-            print(filename)
-            read = []
-            with open(datadir + '/' + filename, newline='') as csvfile:
-                reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-                for row in reader:
-                    read.append([float(x) for x in row[0].split(',')])
-            
-            data.append(read)
-
-    n_columns = math.ceil(len(data)/2)
-    plt.figure(1)
-    n = 1
-    
-    figure, axes = plt.subplots(nrows=2, ncols=2)
-    for run in data:
-        d = np.array(run).T
-        ax = plt.subplot(2,n_columns,n)
-
-        if n==1: ax.title.set_text('Conversation')
-        elif n==2: ax.title.set_text('Reading')
-        elif n==3: ax.title.set_text('Simulated Seizure')
-        elif n==4: ax.title.set_text('Watching TV')
-
-        for (x, y) in zip(d[0], d[1]):
-            plt.plot(x, y, '.') 
-        if centroids != None:
-            for (x,y) in centroids:
-                plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))
-            
-            if lines:
-                #vertical lines
-                plt.plot([(centroids[0][0] + centroids[1][0])/2,(centroids[6][0] + centroids[7][0])/2], [(centroids[0][1] + centroids[1][1])/2,(centroids[6][1] + centroids[7][1])/2],'--', color='black')
-                plt.plot([(centroids[1][0] + centroids[2][0])/2,(centroids[7][0] + centroids[8][0])/2], [(centroids[1][1] + centroids[2][1])/2,(centroids[7][1] + centroids[8][1])/2],'--', color='black')
-
-                #horizontal lines
-                plt.plot([(centroids[0][0] + centroids[3][0])/2,(centroids[2][0] + centroids[5][0])/2], [(centroids[0][1] + centroids[3][1])/2,(centroids[2][1] + centroids[5][1])/2],'--', color='black')
-                plt.plot([(centroids[3][0] + centroids[6][0])/2,(centroids[5][0] + centroids[8][0])/2], [(centroids[3][1] + centroids[6][1])/2,(centroids[5][1] + centroids[8][1])/2],'--', color='black')
-        n=n+1
-
-    figure.tight_layout()
-    plt.show()
 
 
 def load_all(experdir, c=False,cent=None):
@@ -253,7 +278,7 @@ def load_all(experdir, c=False,cent=None):
         if "subj" in dirName:
             print(dirName)
             read = load(dirName,c,cent)
-
+            #sort into specified order
             for i in range(len(read)):
                 if i == 0: j = 1
                 elif i == 1: j = 3
@@ -283,7 +308,7 @@ def load(datadir, c, cent):
     for file in os.listdir(datadir):
         filename = os.fsdecode(file)
         
-        if filename.endswith(".csv") and "data" not in filename and "centroid" not in filename:   #Error handling to dodge hidden files and subdirectories
+        if filename.endswith(".csv") and "filled" in filename and "centroid" not in filename:   #Error handling to dodge hidden files and subdirectories
             print(filename)
             read = []
             with open(datadir + '/' + filename, newline='') as csvfile:
@@ -291,10 +316,8 @@ def load(datadir, c, cent):
                 for row in reader:
                     read.append([float(x) for x in row[0].split(',')])
                         
-                i = 0
-                if c: 
-                    read = classify(centroids, np.array(read).astype(np.float), conf_thresh)
-                    i = 1
+                i = 1
+
                 for add in read:
                     if math.isnan(add[0+i]):
                         add[0+i] = 9
@@ -309,7 +332,7 @@ def load(datadir, c, cent):
     return data
 
 
-def full_feature_extraction(data, labs, outdir, et=.25, c=False):
+def full_feature_extraction(data, labs, outdir, et=.05, c=False):
     """
     Extract features from raw data
 
@@ -322,13 +345,16 @@ def full_feature_extraction(data, labs, outdir, et=.25, c=False):
     feats = []
     labels = []
     epoch_thresh = et
+
     if c: offset = 1
     else: offset = 0
 
     for (run, l) in zip(data, labs):
+        #Calculate number of epochs
         n = math.floor(len(run)/(epoch_size/2))
 
         num_sample = 0
+        #Split into epochs
         for i in range(1,n):
             f = []
 
@@ -347,31 +373,31 @@ def full_feature_extraction(data, labs, outdir, et=.25, c=False):
                 dists = distance.cdist(np.vstack((x,y)), np.vstack((x,y)), 'euclidean')
 
                 #Eye Tracking
-                f.append(statistics.mean(x))
-                f.append(statistics.mean(y)) 
-                f.append(max(x))
-                f.append(min(x))
-                f.append(max(y))
-                f.append(min(y))
-                f.append(max(x) - min(x))
-                f.append(max(y) - min(y))                                                                                  
-                f.append(np.amax(dists))
-                f.append(np.amin(dists))
-                f.append(np.amax(dists) - np.amin(dists))                                                                                                                                                                     #Number of times class changes
-                f.append(np.matrix(dists).mean())                                                                               
-                f.append(statistics.mean([np.linalg.norm(np.array(coords[i])-np.array(coords[i+1])) for i in range(len(coords)-1)]))
+                f.append(statistics.mean(x))    #Average x
+                f.append(statistics.mean(y))    #Average y
+                f.append(max(x))                #Max X
+                f.append(min(x))                #Min X
+                f.append(max(y))                #Max Y
+                f.append(min(y))                #Min Y
+                f.append(max(x) - min(x))       #Range X
+                f.append(max(y) - min(y))       #Range Y                                                                   
+                f.append(np.amax(dists))        #Max distance between points
+                f.append(np.amin(dists))        #Min distance between points
+                f.append(np.amax(dists) - np.amin(dists))                   #Range distance between points                                                                                                                                                  #Number of times class changes
+                f.append(np.matrix(dists).mean())                           #Average distance between all points                      
+                f.append(statistics.mean([np.linalg.norm(np.array(coords[i])-np.array(coords[i+1])) for i in range(len(coords)-1)])) #Average distance between adjacent samples
 
                  
-                f.append(statistics.mean(conf))
-                f.append(statistics.stdev(conf))
-                f.append((splice[:,0+offset]==9).sum())       
+                f.append(statistics.mean(conf))     #Average confidence
+                f.append(statistics.stdev(conf))    #Standard Deviation Confidence
+                
 
                 if c:
                     classified = splice[:,0]
                     f.append(statistics.mean(classified))                                                                                   #Average class
                     f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
-                    f.append((np.diff(classified)!=0).sum())  
-                    f.append((splice[:,0+offset]==9).sum())                                                                                #Number of times class changes             
+                    f.append((np.diff(classified)!=0).sum())                                                                                #Number of class changes
+                    f.append((splice[:,0+offset]==9).sum())                                                                                 #Number of failed samples           
                     f.append((classified[classified==0].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
                     f.append((classified[classified==0].shape[0] + classified[classified==3].shape[0] + classified[classified==6].shape[0] + classified[classified==2].shape[0] + classified[classified==5].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent left/right
 
@@ -397,23 +423,12 @@ def full_feature_extraction(data, labs, outdir, et=.25, c=False):
                 f.append(accel_min)                      #Minmum magnitude of acceleration
                 f.append(gyro_min)                      #Minimum magnitude of gyroscope
                 
-                f.append(accel_max - accel_min)
-                f.append(gyro_max - gyro_min)      
+                f.append(accel_max - accel_min)         #Range accelerometer
+                f.append(gyro_max - gyro_min)           #Range gyroscope
 
-
-                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
-                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
-                
                 feats.append(f)
                 num_sample+=1
-                
-                # if max(f) > 100000: 
-                #     print("HERE")
-                #     print(f)
-                # array_sum = np.sum(np.array(f))
-                # array_has_nan = np.isnan(array_sum)
-                # if array_has_nan:
-                #     print(f)
+
         
         l = (num_sample)*[l]
         labels += l
@@ -425,33 +440,14 @@ def full_feature_extraction(data, labs, outdir, et=.25, c=False):
 
 
 if __name__ == "__main__":
-    #extract_hvcents("experiment/")
-    extract_ncent("experiment", 3)
-    data = process_all("experiment/", centroid="centroids_3.csv")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-e", metavar=("Experiment directory"))
+    parser.add_argument("-c", metavar=("Centroid file"))
+    args = parser.parse_args()
+
+    process_all(args.e, args.c,grid=3,limit=5)
+
+
+
     
-    #data = load_all("experiment/", c=False,cent='/centroids_2x2.csv')
-    #outdir = "figures/3x3Analysis/FullFeature_woClass/"
-
-    """
-    #Seizure vs Technology
-    (feat, lab) = full_feature_extraction([data[0], data[1]], [1,0], 'experiment/features/', c=False)
-    separate(feat, lab, outdir, title="Seizure vs Technology", n=0)
-
-    #Seizure vs Eating
-    (feat, lab) = full_feature_extraction([data[0], data[2]], [1,0], 'experiment/features/', c=False)
-    separate(feat, lab, outdir, title="Seizure vs Eating", n=1)
-
-    #Seizure vs Coversation
-    (feat, lab) = full_feature_extraction([data[0], data[3]], [1,0], 'experiment/features/', c=False)
-    separate(feat, lab, outdir, title="Seizure vs Conversation", n=2)
-
-    #Seizure vs Non-Seizure
-    (feat, lab) = full_feature_extraction(data, [1,0,0,0], 'experiment/features/',c=False)
-    separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
-    
-    #(feat, lab) = full_feature_extraction(data, [1,0,0,0], 'experiment/features/',c=True)
-    #separate(feat, lab)
-
-    #plot_data("experiment/subj1/", "experiment/subj1/centroids_0.csv")
-    """
   

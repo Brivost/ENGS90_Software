@@ -1,9 +1,4 @@
-# To run this script, you need to install: 
-#       `pip install matplotlib` 
-#       `pip install sklearn
-#
-# Ensure that pip has installed these packages to the PythonPath the IDE is running
-
+import argparse
 import csv
 import os
 import math
@@ -18,18 +13,14 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split, cross_val_score, ShuffleSplit
 from sklearn import metrics
 from sklearn.metrics import f1_score
+from sklearn.ensemble import GradientBoostingRegressor, AdaBoostClassifier
+from sklearn.linear_model import LogisticRegression
 from process_raw import extract_ncent, process_all
+from imblearn.over_sampling import SMOTE
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
 
-def class_to_color(c):
-    if   c==0: return 'red'
-    elif c==1: return 'pink'
-    elif c==2: return 'orange'
-    elif c==3: return 'yellow'
-    elif c==4: return 'green'
-    elif c==5: return 'blue'
-    elif c==6: return 'brown'
-    elif c==7: return 'purple'
-    elif c==8: return 'black'
 
 
 def load_all(experdir, merge=True):
@@ -68,7 +59,7 @@ def load(datadir):
     for file in os.listdir(datadir):
         filename = os.fsdecode(file)
         
-        if filename.endswith(".csv") and "data" in filename:   #Error handling to dodge hidden files and subdirectories
+        if filename.endswith(".csv") and "data" in filename and "datafill" not in filename:   #Error handling to dodge hidden files and subdirectories
             print(filename)
             read = []
             with open(datadir + '/' + filename, newline='') as csvfile:
@@ -92,124 +83,23 @@ def load_centroids(cent):
     return centroids
 
 
-def plot_data(data, centroids=None, lines=False):
-    """
-    Plot all data provided onto multiple subplots, optionally plot the calibrated centroids and grid divisions
-
-    data: List of lists, each sublist will be plotted on its own subfigure
-    centroids: List of lists, calibrated centroid positions. If provided, will plot mean centroid positions along with grid delineations
-
-    """
-
-    n_columns = math.ceil(len(data)/2)
-    plt.figure(1)
-    n = 1
-    
-    figure, axes = plt.subplots(nrows=2, ncols=2)
-    for run in data:
-        d = np.array(run).T
-        ax = plt.subplot(2,n_columns,n)
-
-        if n==1: ax.title.set_text('Conversation')
-        elif n==2: ax.title.set_text('Reading')
-        elif n==3: ax.title.set_text('Simulated Seizure')
-        elif n==4: ax.title.set_text('Watching TV')
-
-        for (c, x, y) in zip(d[0], d[1], d[2]):
-            plt.plot(x, y, '.', color=class_to_color(c)) 
-        if centroids != None:
-            for (x,y) in centroids:
-                plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))
-            
-            if lines:
-                #vertical lines
-                plt.plot([(centroids[0][0] + centroids[1][0])/2,(centroids[6][0] + centroids[7][0])/2], [(centroids[0][1] + centroids[1][1])/2,(centroids[6][1] + centroids[7][1])/2],'--', color='black')
-                plt.plot([(centroids[1][0] + centroids[2][0])/2,(centroids[7][0] + centroids[8][0])/2], [(centroids[1][1] + centroids[2][1])/2,(centroids[7][1] + centroids[8][1])/2],'--', color='black')
-
-                #horizontal lines
-                plt.plot([(centroids[0][0] + centroids[3][0])/2,(centroids[2][0] + centroids[5][0])/2], [(centroids[0][1] + centroids[3][1])/2,(centroids[2][1] + centroids[5][1])/2],'--', color='black')
-                plt.plot([(centroids[3][0] + centroids[6][0])/2,(centroids[5][0] + centroids[8][0])/2], [(centroids[3][1] + centroids[6][1])/2,(centroids[5][1] + centroids[8][1])/2],'--', color='black')
-        n=n+1
-
-    figure.tight_layout()
-    plt.show()
-
-def plot_accel(data):
-    """
-    Plot accelerometry and gyroscopic data signatures from IMU
-    """
-    n = 0
-    for run in data:
-        d = np.array(run).T
-        t = np.linspace(0,len(d[0]),len(d[0]))
-        figure, axes = plt.subplots(nrows=2, ncols=3)
-        figure.tight_layout()
-        for i in range(1,7):
-            plt.subplot(2,3,i)
-            ax = plt.gca()
-            ax.get_xaxis().set_visible(False)
-            
-
-            plt.plot(t, d[i+3])
-            """
-            if i==1: 
-                plt.title("X Axis")
-                plt.ylabel('Accelerometer (m/s^2)')
-            elif i==2: plt.title("Y Axis") 
-            elif i==3: plt.title("Z Axis") 
-            elif i==4: plt.ylabel("Gyroscope (deg/s)")
-            """
-            
-            if i==1 and n==0:
-                mid = -7
-            elif i==2 and n==0:
-                mid = -2.5
-            elif i==3 and n==0:
-                mid = 3.5
-
-            if i==1 or i==2 or i==3 and n==0:
-                
-                ax.set_ylim([mid-9, mid+9])
-
-            if i==4 or i==5 or i==6 and n==0:
-                
-                ax.set_ylim([-1000, 1000])
-            
-            if i==1 and n==1:
-                mid = -10
-            elif i==2 and n==1:
-                mid = 0
-            elif i==3 and n==1:
-                mid = 5
-            if i==1 or i==2 or i==3 and n==1:
-                ax.set_ylim([mid-6, mid+6])
-            if i==4 or i==5 or i==6 and n==1:
-                ax.set_ylim([-2000, 2000])
-        
-        plt.savefig('figures/' + str(n) + ".png", dpi=600)
-        n+=1
-        plt.figure()
 
 
 
 
 
-
-def separate(features, labels, outdir, title=None, n=None):
+def separate_om(features, labels, outdir=None, title=None, n=None):
     """
     Run an LDA on the provided features and labels
+    Use another model besides LDA
     """
     train_feat, test_feat, train_labels, test_labels = train_test_split(features, labels, test_size = 0.3, random_state = 42)
     
-    clf = LinearDiscriminantAnalysis()
-    #clf = KNeighborsClassifier(n_neighbors=5)
+    clf = LogisticRegression(random_state=42)
+
     
-    #clf.fit(train_feat, train_labels)
-    
-    clf.fit_transform(train_feat, train_labels)
-    clf.transform(test_feat)
-    
-    
+    clf.fit(train_feat, train_labels)
+        
     preds = clf.predict(test_feat)
 
     
@@ -220,6 +110,7 @@ def separate(features, labels, outdir, title=None, n=None):
 
     cv = ShuffleSplit(n_splits=5, test_size=0.3, random_state=42)
     scores = cross_val_score(clf, features, labels, cv=cv, scoring='f1_macro')
+    #print(scores)
     f1 = np.average(scores)
     print('AUC: %.3f' % auc)
     print('F1: %.3f' % f1)
@@ -232,59 +123,108 @@ def separate(features, labels, outdir, title=None, n=None):
     elif n==2: lab = "Conversation"
     else: lab = "Non-Seizure"
     if title != None: plt.title(title)
-    plt.savefig(outdir + lab + "/" + lab + "ROC", dpi=600)
+    if outdir != None: plt.savefig(outdir + lab + "/" + lab + "ROC", dpi=600)
 
+    plt.figure()
+    table = plt.table(cellText = [[f1, len(features)]], colLabels=("F1", "#Features"), loc="center")
+    plt.axis('off')
+    plt.grid('off')
+    if outdir != None: plt.savefig(outdir + lab + "/" + lab + "LDAScores", dpi=600, bbox_inches="tight")
+    
+    return f1
+
+def separate(features, labels, outdir=None, title=None, n=None):
+    """
+    Run an LDA on the provided features and labels
+    """
+    #Split into train and test featuers
+    train_feat, test_feat, train_labels, test_labels = train_test_split(features, labels, test_size = 0.3, random_state = 42)
+    
+    #Define the classifier
+    clf = LinearDiscriminantAnalysis()
+    clf.fit_transform(train_feat, train_labels)
+    clf.transform(test_feat)
+    
+    
+    #Generate AUC score
+    preds = clf.predict(test_feat)
+    probs = clf.predict_proba(test_feat)
+    probs = probs[:, 1]
+    auc = metrics.roc_auc_score(test_labels, probs)
+
+    #Use 5-Fold CV to generate F1 Macro score
+    cv = ShuffleSplit(n_splits=5, test_size=0.3, random_state=42)
+    scores = cross_val_score(clf, features, labels, cv=cv, scoring='f1_macro')
+    f1 = np.average(scores)
+   
+    print('AUC: %.3f' % auc)
+    print('F1: %.3f' % f1)
+
+    #Plot ROC Curve
+    metrics.plot_roc_curve(clf, test_feat, test_labels)
+
+
+    if n== 0: lab = "Technology"
+    elif n==1: lab = "Eating"
+    elif n==2: lab = "Conversation"
+    else: lab = "Non-Seizure"
+
+    #Save ROC Curve
+    if title != None: plt.title(title)
+    if outdir != None: plt.savefig(outdir + lab + "/" + lab + "ROC", dpi=600)
+
+    #Save F1 and AUC scores
     plt.figure()
     table = plt.table(cellText = [[f1, auc, len(features)]], colLabels=("F1", "AUC", "#Features"), loc="center")
     plt.axis('off')
     plt.grid('off')
-    plt.savefig(outdir + lab + "/" + lab + "LDAScores", dpi=600, bbox_inches="tight")
+    if outdir != None: plt.savefig(outdir + lab + "/" + lab + "LDAScores", dpi=600, bbox_inches="tight")
 
     
     importance = 10*clf.coef_[0]
 
-    plot_histo(features, labels, outdir, importance, lab, title=title)
+    #Plot histogram
+    if outdir != None: plot_histo(features, labels, outdir, importance, lab, title=title)
     
     return (auc,f1)
 
 
 def plot_histo(features, labels, outdir, coef, lab, title=None):
+    """
+    Plot histogram and corresponding feature bar chart
+    """
     mapped = []
-    # for feat in features:
-    #     for (c, f) in zip(coef, feat):
-    #         print(c*f)
     
+    #Normalize coefficients
     norm_coef = coef / np.linalg.norm(np.array(coef))
+    #Save top features to a table
     feature_table(norm_coef, outdir, lab)
     
+    #Project onto axis of maximal separation by taking the dot product of the feature coefficient and feature values
     features = np.array(features).dot(norm_coef.T)
 
     feat_1 = []
     feat_0 = []
 
+    #Separate into 1 labeled and 0 labeled features
     for (feat, l) in zip(features,labels):
         if l==0: feat_1.append(feat)
         else: feat_0.append(feat)
             
-    #mapped_1 = [sum([c*f for (c,f) in zip(coef, feat)]) for feat in feat_1]
-    #mapped_0 = [sum([c*f for (c,f) in zip(coef, feat)]) for feat in feat_0]
+
 
     plt.figure()
     if title != None: plt.title(title)
-    plt.hist(feat_1, bins=50, color='red', stacked=True, alpha=0.8, ec='black', density=True, label=lab)
-    plt.hist(feat_0, bins=50, color='blue', stacked=True, alpha=0.8, ec='black', density=True, label="Seizure")
+    #Plot overlapping histograms
+    feat_1 = np.array(feat_1)
+    feat_0 = np.array(feat_0)
+    plt.hist(feat_1, bins=50, color='red', stacked=True, alpha=0.8, ec='black', density=False, label=lab, weights=np.zeros_like(feat_1) + 1. / feat_1.size)
+    plt.hist(feat_0, bins=50, color='blue', stacked=True, alpha=0.8, ec='black', density=False, label="Seizure", weights=np.zeros_like(feat_0) + 1. / feat_0.size)
     plt.legend(loc="upper left")
-
+    plt.xlabel("Separation")
+    plt.ylabel("Frequency")
     xmin, xmax = plt.xlim()
-    mu1, std1 = norm.fit(feat_1)
-    mu0, std0 = norm.fit(feat_0)
 
-    x = np.linspace(xmin, xmax, 100)
-    p1 = norm.pdf(x, mu1, std1)
-    p0 = norm.pdf(x, mu0, std0)
-
-    plt.plot(x, p1, color='red')
-    plt.plot(x, p0, color='blue')
     plt.savefig(outdir + lab + "/" + lab + "Histo", dpi=600)
 
 
@@ -292,28 +232,23 @@ def plot_histo(features, labels, outdir, coef, lab, title=None):
 
 
 def feature_table(coef, outdir, lab):
-    full = ["Average X", "Average Y", "Max X", "Min X", "Max Y", "Min Y", "Range X", "Range Y", "Max Distance btwn Points", "Min Distance btwn Points", 
-    "Range Distance btwn Points", "Average Distance btwn all Points", "Average Distance btwn Adjacent Points", "Average Conf", "Std Conf", "# Low-Confidence Samples"]
-    eye = ["Average Eye Classification", "# Unique Eye Classificaitons", "# Classifcation Changes", "# Low-Confidence Samples", 
-    "% Top/Bottom Row",  "% Left/Right Column"] 
+    """
+    Save out table of features and coefficients ranked
+    """
+    eye = ["Average Eye Classification", "# Unique Eye Classificaitons", "# Classifcation Changes", "#Low-Confidence Samples","% Top/Bottom Row",  "% Left/Right Column"] 
 
     head = ["Average Accelerometer Magnitude", "Average Gyroscope Magnitude", "Std Accelerometer Magnitude"
     , "Std Gyroscope Magnitude", "Maximum Accelerometer", "Maximum Gyroscope", "Minimum Accelerometer", "Minimium Gyroscope", "Range Accelerometer",
     "Range Gyroscope"]
 
-    txteye = ["Average Eye Classification", "# Unique Eye Classificaitons", "# Classifcation Changes", "# Low-Confidence Samples", 
-    "%TopRight",  "%TopLeft", "%BottomRight", "BottomLeft"] 
-
-    features = eye
-    print(len(features))
-    print(len(coef))
-
+    features = eye+head
 
     plt.figure()
     plt.bar(features, coef)
     plt.xticks(rotation=90, fontsize=8)
     plt.savefig(outdir + lab + "/" + lab + "Features", dpi=600)
-    #plt.show()
+
+    #Sort in descending order by absolute value
     sorts = reversed(sorted(zip(coef, features), key=lambda x: abs(x[0])))
 
     plt.figure()
@@ -328,7 +263,7 @@ def feature_table(coef, outdir, lab):
 
 
 
-def feature_extraction(data, labs, outdir, grid=3, et=.25):
+def feature_extraction(data, labs, outdir, grid=3, et=.05):
     """
     Extract features from raw data
 
@@ -337,6 +272,7 @@ def feature_extraction(data, labs, outdir, grid=3, et=.25):
 
     Returns: List of lists, of relevant features 
     """
+    #Set constants
     epoch_size = 130
     feats = []
     labels = []
@@ -344,32 +280,35 @@ def feature_extraction(data, labs, outdir, grid=3, et=.25):
     lc = grid*grid
 
     for (run, l) in zip(data, labs):
+        #Determine number of epochs
         n = math.floor(len(run)/(epoch_size/2))
 
         num_sample = 0
+        #Loop across all epochs
         for i in range(1,n):
             f = []
-
+            #Splice all data into current epochs
             splice = np.array(run[(int)((i-1)*(epoch_size/2)):(int)((i*epoch_size/2)+epoch_size/2)])
+
             classified = splice[:,0]
+            #Check if low-confidence threshold is met
             if (classified[classified==lc].shape[0] / len(classified)) <= epoch_thresh:
-                #Eye Tracking
                 
-                f.append(statistics.mean(classified))   
-                #f.append(statistics.stdev(classified))                                                                                #Average class
+                #Eye Tracking
+                f.append(statistics.mean(classified))                                                                                   #Average class
                 f.append(len(np.unique(classified)))                                                                                    #Number of unique classes
                 f.append((np.diff(classified)!=0).sum())                                                                                #Number of times class changes
-                f.append((classified==lc).sum()) 
+                f.append((classified==lc).sum())                                                                                        #Number of low confidence values
                 
-                if grid > 2:                                                                                        #Number of poor confidence values
-                    #f.append((classified[classified==i].shape[0] + classified[classified==1].shape[0] + classified[classified==2].shape[0] + classified[classified==6].shape[0] + classified[classified==7].shape[0] + classified[classified==8].shape[0]) / len(classified))  #Percent top/bottom
+                if grid > 2:                                                                                        
+                    
                     t = 0
                     for i in range(0,grid):
-                        t += classified[classified==i].shape[0] + classified[classified==grid*grid-grid+i].shape[0]
+                        t += classified[classified==i].shape[0] + classified[classified==grid*grid-grid+i].shape[0]     # %Left/Right Column
                     f.append(t/len(classified))
                     t=0
                     for i in range(0,grid):
-                        t += classified[classified==i*(grid)].shape[0] + classified[classified==i*(grid)+(grid-1)].shape[0]
+                        t += classified[classified==i*(grid)].shape[0] + classified[classified==i*(grid)+(grid-1)].shape[0] # %Top/Bottom Row
                     f.append(t/len(classified))
                 
                 
@@ -378,15 +317,9 @@ def feature_extraction(data, labs, outdir, grid=3, et=.25):
                 
                 
                 
-                # f.append((classified[classified==0].shape[0] / len(classified)))
-                # f.append((classified[classified==1].shape[0] / len(classified)))  #Percent top/bottom
-                # f.append((classified[classified==2].shape[0] / len(classified)))
-                # f.append((classified[classified==3].shape[0] / len(classified)))
-                #f.append(((classified[classified==0].shape[0] + classified[classified==2].shape[0]) / len(classified))) 
-                
 
                 #Head Tracking
-                """
+                
                 accel_mag = [math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,1]**2,splice[:,2]**2,splice[:,3]**2)]
                 gyro_mag = [math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]
 
@@ -408,27 +341,25 @@ def feature_extraction(data, labs, outdir, grid=3, et=.25):
                 f.append(accel_min)                      #Minmum magnitude of acceleration
                 f.append(gyro_min)                      #Minimum magnitude of gyroscope
                 
-                f.append(accel_max - accel_min)
-                f.append(gyro_max - gyro_min)      
-                
-                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,4]**2,splice[:,5]**2,splice[:,6]**2)]))))   #Average Fourier transform of acceleration magnitude
-                #f.append(np.mean(np.array(fft([math.sqrt(x+y+z) for (x,y,z) in zip(splice[:,7]**2,splice[:,8]**2,splice[:,9]**2)]))))   #Average Fourier transform of gyroscope magnitude
-                """
+                f.append(accel_max - accel_min)         #Range acceleration
+                f.append(gyro_max - gyro_min)           #Range gyroscope
+                  
                 feats.append(f)
                 num_sample+=1
         
         l = (num_sample)*[l]
         labels += l
+    
     print(len(feats))
-    with open(outdir + "features.csv", 'w', newline='') as csvfile:
-        
-        writer = csv.writer(csvfile, delimiter=',')
-        for i in range(len(feats)):
-            writer.writerow(feats[i] + [labels[i]])
 
     return (feats, labels)
 
+
+
 def gen_figs(data,outdir,grid=3):
+    """
+    Generate ROC Curve, Histogram, LDA Score Table, Feature Table, and Feature Bar Chart for Seizure vs Technology, Conversation, Eating, Non-Seizure
+    """
     #Seizure vs Technology
     (feat, lab) = feature_extraction([data[0], data[1]], [1,0], 'experiment/features/',grid)
     l = np.array(lab)
@@ -442,6 +373,7 @@ def gen_figs(data,outdir,grid=3):
     print(l[l==0].shape[0])
     try: separate(feat, lab, outdir, title="Seizure vs Eating", n=1)
     except Exception as e: print("Failed Seizure vs Eating!")
+    
     #Seizure vs Coversation
     (feat, lab) = feature_extraction([data[0], data[3]], [1,0], 'experiment/features/',grid)
     l = np.array(lab)
@@ -453,94 +385,137 @@ def gen_figs(data,outdir,grid=3):
     (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/',grid)
     l = np.array(lab)
     print(l[l==1].shape[0])
-    try:separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
-    except Exception as e: print("Failed Seizure vs Non-Seizure!")
+    return separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
 
-def threshold_scan(data):
-    #Vary Threshold
+
+def gen_figs_us(data,outdir,grid=3,N=None):   
+    """
+    Generate figures for all analyses using naive undersampling
+    """
+    #Seizure vs Non-Seizure
+
+    (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/',grid)
+    nonseiz_f = []
+    seiz_f = []
+    for (f,l) in zip(feat,lab):
+        if l==0: 
+            nonseiz_f.append(f)
+        else:
+            seiz_f.append(f)
+    random.shuffle(nonseiz_f)
+
+    feat = nonseiz_f[0:N*len(seiz_f)] + seiz_f
+    lab = [0]*N*len(seiz_f)+[1]*len(seiz_f)
+
+    return separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
+
+def gen_figs_os(data,outdir,grid=3,N=None):   
+    """
+    Generate figures for all analyses using SMOTE oversampling
+    """
+    #Seizure vs Non-Seizure
+
+    (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/',grid)
+    
+    feat,lab = SMOTE(sampling_strategy=N).fit_resample(feat,lab)
+
+    return separate(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
+    #except Exception as e: print("Failed Seizure vs Non-Seizure!")
+
+def gen_figs_om(data,outdir,grid=3):   
+    """
+    Generate features using another machine learning model with 10% SMOTE oversampling
+    """
+    #Seizure vs Non-Seizure
+    (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/',grid)
+    feat,lab = SMOTE(sampling_strategy=.1).fit_resample(feat,lab)
+
+    return separate_om(feat, lab, outdir, title="Seizure vs Non-Seizure", n=3)
+
+
+def threshold_scan(data, outdir):
+    """
+    Try epoch thresholds 1-100 and output threshold figure
+    """
 
     best = [0,0]
     aucs = []
     f1s = []
     lenfeats = []
+    prev_lf = 0
+    prev_score = (0,0)
     biggest = 0
+    #Scan all thresholds
     for i in range(1,101):
         print(i)
-        (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/', i/100.0)
-        (auc,f1) = separate(feat, lab)
-        if f1 > best[0] and i > 5:
-            best = [f1, i]
+        #Generate AUC and F1 score
+        (feat, lab) = feature_extraction(data, [1,0,0,0], 'experiment/features/', grid=3,et=i/100.0)
+        lenfeats.append(len(feat))
+
+        if len(feat) != prev_lf: (auc,f1) = separate(feat, lab,n=3)
+        else: 
+            auc = prev_score[0]
+            f1 = prev_score[1]
         aucs.append(auc)
         f1s.append(f1)
-        lenfeats.append(len(feat))
+        prev_score = (auc, f1)
+        prev_lf = len(feat)
+        
+        
         if i == 100: biggest = len(feat)
     
-
+    #Generate figure
     plt.figure()
     figure, axes = plt.subplots(nrows=2, ncols=2)
     figure.suptitle("Threshold Selection")
     ax = plt.subplot(2,1,1)
     plt.plot(range(1,101), aucs, label="AUC Score")
     plt.plot(range(1,101), f1s, label="F1 Score")
-    #ax.title.set_text('Seizure vs Non-Seizure Classifier Performance')
-    #ax.set_xlabel('Low-Confidence Sample Percentage Threshold')
-    plt.legend(loc="lower left")
+
+    ax = plt.gca()
+    ax.set_ylim([.775, 1])
+        
+    plt.legend(loc="center right")
     ax = plt.subplot(2,1,2)
-    
+    ax = plt.gca()
+    ax.set_ylim([10, 100])
     plt.plot(range(1,101), [100*(x / float(biggest)) for x in lenfeats], label="Percentage of Epochs Included")
     
     ax.set_xlabel('Low-Confidence Sample Percentage Threshold')
-    #ax.set_ylabel('Percentage of Epochs Included')
     plt.legend(loc="lower right")
     
-    print("Best threshold is " + str(best[0]) + " at " + str(best[1]))
-    plt.show()
+
+    plt.savefig(outdir + "ThresholdScaled", dpi=600, bbox_inches="tight")
     
 
 def gran(experdir):
-    for n in range(3,11):
+    """
+    Produce F1 and AUC scores for granularity of 3x3 to 15x15
+    """
+    aucs = []
+    f1 = []
+    for n in range(3,16):
         extract_ncent(experdir, n)
-        data = process_all("experiment/", centroid="centroids_" + str(n) + ".csv", grid=n)
+        data = process_all("experiment/", centroid="centroids_" + str(n) + ".csv", grid=n, limit=5)
         data = load_all('experiment/')
         outdir = "figures/NxN/granular_nohead/"+str(n)+"/"
-        gen_figs(data, outdir, n)
+        (a, f) = gen_figs(data, outdir, n)
+        aucs.append(a)
+        f1.append(f)
+    return(aucs, f1)
+
+
 
 
 
 if __name__ == "__main__":
-    gran("experiment/")
-    # extract_ncent("experiment/", 2)
-    # data = process_all("experiment/", centroid="centroids_2.csv", grid=2)
-    # data = load_all('experiment/')
-    # outdir = "figures/NxN/granular/"+str(2)+"/"
-    # gen_figs(data, outdir, 2)
-    
-    
-    #data = load_all('experiment/')
 
-    #outdir = "figures/NxN/granular/3/"
-    #gen_figs(data, outdir)
-    
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-e", metavar=("Experiment directory"))
+    parser.add_argument("-o", metavar=("Output directory"))
+    args = parser.parse_args()
 
-    """
-    for j in range(1,9):
-        data = [ [], [], [], []] 
-        read = load('experiment/subj'+str(j)+"/")
-        for i in range(len(read)):
-            if i > 0:
-                data[i-1].extend(read[i])
-            else:
-                data[i].extend(read[i])
-        path = outdir+"subj"+str(j)+"/"
-        if not os.path.isdir(path):
-            print(path)
-            os.makedirs(path, exist_ok=True)
+    data = load_all(args.e)
+    gen_figs(data, args.o)
 
-        if not os.path.isdir(path+"Technology/"): os.makedirs(path + "Technology/", exist_ok=True)
-        if not os.path.isdir(path+"Eating/"): os.makedirs(path + "Eating/", exist_ok=True)
-        if not os.path.isdir(path+"Conversation/"): os.makedirs(path + "Conversation/", exist_ok=True)
-        if not os.path.isdir(path+"Non-Seizure/"): os.makedirs(path + "Non-Seizure/", exist_ok=True)
-        gen_figs(data, path)
-    """
-    
     

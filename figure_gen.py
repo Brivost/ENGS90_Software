@@ -17,6 +17,19 @@ import matplotlib.pyplot as plt
 from cvd_pupillometry.pyplr.pupil import PupilCore
 from cvd_pupillometry.pyplr.utils import unpack_data_pandas
 
+def class_to_color(c):
+    """
+    Turn classification value to a color
+    """
+    if   c==0: return 'red'
+    elif c==1: return 'pink'
+    elif c==2: return 'orange'
+    elif c==3: return 'yellow'
+    elif c==4: return 'green'
+    elif c==5: return 'blue'
+    elif c==6: return 'brown'
+    elif c==7: return 'purple'
+    elif c==8: return 'black'
 
 
 def trace_line(centroids, n):
@@ -397,13 +410,150 @@ def plot_centroids(centroids, n=3):
         plt.plot(x,y,'*', color='purple', label="Recalibrated")
 
 
+
+def plot_data(datadir, cent, lines=False):
+    """
+    Plot all data provided onto multiple subplots, optionally plot the calibrated centroids and grid divisions
+
+    data: List of lists, each sublist will be plotted on its own subfigure
+    centroids: List of lists, calibrated centroid positions. If provided, will plot mean centroid positions along with grid delineations
+
+    """
+
+    centroids = load_centroids(cent)
+
+    data = []
+    conf_thresh = .75
+
+    for file in os.listdir(datadir):
+        filename = os.fsdecode(file)
+        
+        if filename.endswith(".csv") and "filled" in filename and "centroids" not in filename:   #Error handling to dodge hidden files and subdirectories
+            print(filename)
+            read = []
+            with open(datadir + '/' + filename, newline='') as csvfile:
+                reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+                for row in reader:
+                    read.append([float(x) for x in row[0].split(',')])
+            
+            data.append(read)
+
+    n_columns = math.ceil(len(data)/2)
+    plt.figure(1)
+    n = 1
     
-    # for (x,y) in load_centroids("experiment/subj4/centroids_2x2.csv"):
-    #     plt.plot(x,y,'*', color='red', label="2x2")
-    
-    
-    #plt.show()
-    #plt.savefig("figures/NxN/10x10.png", dpi=600)
+    figure, axes = plt.subplots(nrows=2, ncols=2)
+    for run in data:
+        d = np.array(run).T
+        ax = plt.subplot(2,n_columns,n)
+
+        if n==1: ax.title.set_text('Conversation')
+        elif n==2: ax.title.set_text('Reading')
+        elif n==3: ax.title.set_text('Simulated Seizure')
+        elif n==4: ax.title.set_text('Watching TV')
+
+        for (x, y) in zip(d[0], d[1]):
+            plt.plot(x, y, '.') 
+        if centroids != None:
+            for (x,y) in centroids:
+                plt.plot(x,y,'*', color=class_to_color(centroids.index([x,y])))
+            
+            if lines:
+                #vertical lines
+                plt.plot([(centroids[0][0] + centroids[1][0])/2,(centroids[6][0] + centroids[7][0])/2], [(centroids[0][1] + centroids[1][1])/2,(centroids[6][1] + centroids[7][1])/2],'--', color='black')
+                plt.plot([(centroids[1][0] + centroids[2][0])/2,(centroids[7][0] + centroids[8][0])/2], [(centroids[1][1] + centroids[2][1])/2,(centroids[7][1] + centroids[8][1])/2],'--', color='black')
+
+                #horizontal lines
+                plt.plot([(centroids[0][0] + centroids[3][0])/2,(centroids[2][0] + centroids[5][0])/2], [(centroids[0][1] + centroids[3][1])/2,(centroids[2][1] + centroids[5][1])/2],'--', color='black')
+                plt.plot([(centroids[3][0] + centroids[6][0])/2,(centroids[5][0] + centroids[8][0])/2], [(centroids[3][1] + centroids[6][1])/2,(centroids[5][1] + centroids[8][1])/2],'--', color='black')
+        n=n+1
+
+    figure.tight_layout()
+    plt.show()
+
+def plot_all_cents(experdir, cent):
+    """
+    Plot all centroids for all subjects
+    Draw a line between each adjacent centroid
+    """
+    plt.figure()
+    i=0
+    for dirName, subdirList, fileList in os.walk(experdir):
+        
+        if "subj" in dirName:
+            centroids = load_centroids(dirName + "/" + cent)
+            
+
+            for (x,y) in centroids:
+                plt.plot(x,y,'*', color=class_to_color(i))
+            
+            plt.plot([centroids[0][0],centroids[1][0]],[centroids[0][1],centroids[1][1]], color=class_to_color(i))
+            plt.plot([centroids[0][0],centroids[3][0]],[centroids[0][1],centroids[3][1]], color=class_to_color(i))
+            plt.plot([centroids[1][0],centroids[2][0]],[centroids[1][1],centroids[2][1]], color=class_to_color(i))
+            plt.plot([centroids[1][0],centroids[4][0]],[centroids[1][1],centroids[4][1]], color=class_to_color(i))
+            plt.plot([centroids[2][0],centroids[5][0]],[centroids[2][1],centroids[5][1]], color=class_to_color(i))
+            plt.plot([centroids[3][0],centroids[4][0]],[centroids[3][1],centroids[4][1]], color=class_to_color(i))
+            plt.plot([centroids[3][0],centroids[6][0]],[centroids[3][1],centroids[6][1]], color=class_to_color(i))
+            plt.plot([centroids[4][0],centroids[5][0]],[centroids[4][1],centroids[5][1]], color=class_to_color(i))
+            plt.plot([centroids[4][0],centroids[7][0]],[centroids[4][1],centroids[7][1]], color=class_to_color(i))
+            plt.plot([centroids[5][0],centroids[8][0]],[centroids[5][1],centroids[8][1]], color=class_to_color(i))
+            plt.plot([centroids[6][0],centroids[7][0]],[centroids[6][1],centroids[7][1]], color=class_to_color(i))
+            plt.plot([centroids[7][0],centroids[8][0]],[centroids[7][1],centroids[8][1]], color=class_to_color(i))
+            i+=1
+        
+    plt.title("All Subject Centroids")
+    plt.savefig("figures/allcentroids_", dpi=600, bbox_inches="tight")
+
+
+
+def plot_accel(data):
+    """
+    Plot accelerometry and gyroscopic data signatures from IMU
+    """
+    n = 0
+    for run in data:
+        d = np.array(run).T
+        t = np.linspace(0,len(d[0]),len(d[0]))
+        figure, axes = plt.subplots(nrows=2, ncols=3)
+        figure.tight_layout()
+        for i in range(1,7):
+            plt.subplot(2,3,i)
+            ax = plt.gca()
+            ax.get_xaxis().set_visible(False)
+            
+
+            plt.plot(t, d[i+3])
+            
+            if i==1 and n==0:
+                mid = -7
+            elif i==2 and n==0:
+                mid = -2.5
+            elif i==3 and n==0:
+                mid = 3.5
+
+            if i==1 or i==2 or i==3 and n==0:
+                
+                ax.set_ylim([mid-9, mid+9])
+
+            if i==4 or i==5 or i==6 and n==0:
+                
+                ax.set_ylim([-1000, 1000])
+            
+            if i==1 and n==1:
+                mid = -10
+            elif i==2 and n==1:
+                mid = 0
+            elif i==3 and n==1:
+                mid = 5
+            if i==1 or i==2 or i==3 and n==1:
+                ax.set_ylim([mid-6, mid+6])
+            if i==4 or i==5 or i==6 and n==1:
+                ax.set_ylim([-2000, 2000])
+        
+        plt.savefig('figures/' + str(n) + ".png", dpi=600)
+        n+=1
+        plt.figure()
+
 
 
 if __name__ == "__main__":
