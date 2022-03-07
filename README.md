@@ -7,7 +7,7 @@ This repo includes all software for Thayer School ENGS90 Group 592: Eye Tracking
 Python 3+ required. Neccessary packages for each script noted in the code documentation
 
 ## remote_run.py
-Calibrates Pupil Core and collects synchronized data from Pupil Core and Arduino IMU. Writes out centroid coordinates and raw experimental data to a designated directory. The user is able to control the process via a simple GUI. To run this script, `gyroscope.c` must be flashed to an Arduino connected to the IMU device. 
+Calibrates Pupil Core and collects synchronized data from Pupil Core and Arduino IMU. Writes out centroid coordinates and raw experimental data to a designated directory. The user is able to control the process via a simple GUI. To run this script, `gyroscope.ino` must be flashed to an Arduino connected to the IMU device. 
 
 
 <b> Useage: </b> <br><br>
